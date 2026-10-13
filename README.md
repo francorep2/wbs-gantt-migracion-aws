@@ -23,14 +23,17 @@ Abrí `index.html` en el navegador (doble clic alcanza, no necesita servidor).
 
 ### Exportar (botón azul o menú Archivo)
 Abre un panel para elegir qué sale en el archivo:
-- **Formato**: PDF con colores o MS Project (.xml).
+- **Formato**: PDF con colores, MS Project (.xml) o draw.io (.drawio).
 - **Partir de**: *WBS y Gantt* (lo básico), *Detallado* (todo) o *Vaciar*; después se ajusta a mano.
 - **Qué incluir (PDF)**: secciones Resumen, WBS, Gantt y Diccionario de la WBS, cada una con sus opciones (columnas, dependencias, ruta crítica, hitos, línea de hoy, leyenda, fechas en la WBS, etc.).
 - **Qué incluir (MS Project)**: dependencias, % de avance, responsables como recursos, notas con holgura, hitos y campos personalizados "Fase" (Texto1) y "Ruta crítica" (Texto2).
+- **Qué incluir (draw.io)**: hoja WBS (organigrama, con o sin fechas) y hoja Gantt (tabla + barras por semana), dependencias como conectores, ruta crítica en rojo e hitos. Todo sale como formas editables con el color de cada fase.
 - **Fases y paquetes**: se destilda cualquier fase o paquete para dejarlo afuera.
 - **Hoja** A3 o A4 apaisada y **nombre del archivo**.
 
 La selección queda guardada en el navegador para la próxima vez.
+
+El `.drawio` se abre en [app.diagrams.net](https://app.diagrams.net) o en draw.io de escritorio con *Archivo > Abrir*; cada hoja es una página del diagrama.
 
 El XML de MS Project se abre desde Project con *Archivo > Abrir* eligiendo "Formato XML". No guarda colores de barras: para colorear por fase usá *Formato > Estilos de barra* o agrupá por el campo "Fase".
 
@@ -48,7 +51,7 @@ Los cambios se guardan automáticamente en el navegador (localStorage).
 index.html        Página
 css/styles.css    Estilos (tema claro/oscuro, responsive, impresión)
 js/data.js        Datos iniciales: WBS, duraciones, dependencias e hitos
-js/export.js      Exportación a PDF (jsPDF) y MS Project (XML)
+js/export.js      Exportación a PDF (jsPDF), MS Project (XML) y draw.io
 js/vendor/        jsPDF 2.5.1 (para que funcione sin internet)
 js/app.js         Lógica: render WBS, Gantt, arrastre, ruta crítica, import/export
 CONTEXTO.md       Contexto, decisiones y bitácora del proyecto

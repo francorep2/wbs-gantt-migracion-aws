@@ -330,6 +330,7 @@ dialog.export[open] { display: flex; flex-direction: column; }
 .exp-foot { border-top: 1px solid var(--border); padding: 12px 20px 16px; display: flex; flex-direction: column; gap: 8px; }
 .exp-file { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-end; }
 .exp-file label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+.exp-file label[hidden] { display: none; }
 .exp-file select, .exp-file input { border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; background: var(--surface); }
 .fname { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); }
 .fname input { width: 240px; max-width: 60vw; }
