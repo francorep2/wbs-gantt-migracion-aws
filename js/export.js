@@ -683,6 +683,141 @@ ${tasks.join("\n")}
     return { name: `${base}.xml`, blob: new Blob([xml], { type: "application/xml" }) };
   }
 
+  /* ------------------------------------------------------------------ */
+  /* draw.io / diagrams.net (.drawio, XML de mxGraph sin comprimir)      */
+  /* ------------------------------------------------------------------ */
+  function drawio(api, o) {
+    const { state } = api;
+    if (!state.tasks.length) throw new Error("no quedó ningún paquete seleccionado");
+    if (!o.wbs && !o.gantt) throw new Error("no elegiste ninguna hoja para draw.io");
+    const attr = s => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/\n/g, "&#10;");
+    const html = s => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const hex = rgb => "#" + rgb.map(c => c.toString(16).padStart(2, "0")).join("");
+    const crit = code => !!api.analysis.info.get(code)?.critical;
+    const phases = sortedPhases(api);
+    const [ps, pe] = projectSpan(api);
+
+    // Arma una hoja: cada celda es [id, value(html), style, geom|null, extra]
+    const page = (id, name, cells) => {
+      const body = cells.map(c => c.edge
+        ? `<mxCell id="${c.id}" style="${c.style}" edge="1" parent="1" source="${c.source}" target="${c.target}"><mxGeometry relative="1" as="geometry"/></mxCell>`
+        : `<mxCell id="${c.id}" value="${attr(c.value)}" style="${c.style}" vertex="1" parent="1"><mxGeometry x="${Math.round(c.x)}" y="${Math.round(c.y)}" width="${Math.round(c.w)}" height="${Math.round(c.h)}" as="geometry"/></mxCell>`).join("\n");
+      return `<diagram id="${id}" name="${attr(name)}"><mxGraphModel grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" math="0" shadow="0"><root><mxCell id="0"/><mxCell id="1" parent="0"/>\n${body}\n</root></mxGraphModel></diagram>`;
+    };
+    const box = (fill, stroke, extra = "") => `rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=${fill};strokeColor=${stroke};fontFamily=Helvetica;${extra}`;
+    const text = (extra = "") => `text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;fontFamily=Helvetica;${extra}`;
+    const pages = [];
+
+    /* --- WBS: organigrama --- */
+    if (o.wbs) {
+      const cells = [];
+      const colW = 180, gap = 24, taskW = colW - 22, taskH = o.wbsDates ? 54 : 40, vgap = 12;
+      const totalW = phases.length * colW + (phases.length - 1) * gap;
+      const rootW = 320, rootH = o.wbsDates ? 64 : 48;
+      cells.push({ id: "root", x: (totalW - rootW) / 2, y: 0, w: rootW, h: rootH, style: box("#ffffff", "#1c2230", "strokeWidth=2;fontStyle=1;fontSize=14;"),
+        value: `<b>${html(state.name.toUpperCase())}</b>` + (o.wbsDates ? `<br><font style="font-size:11px" color="#6b7385">${api.fmt(ps)} a ${api.fmt(pe - 1)} · ${Math.ceil((pe - ps) / 7)} semanas</font>` : "") });
+      const phaseY = rootH + 50, phaseH = o.wbsDates ? 66 : 52;
+      phases.forEach((p, i) => {
+        const rgb = hexToRgb(p.color);
+        const x = i * (colW + gap);
+        const ts = api.tasksOf(p.code);
+        const pid = `F${p.code}`;
+        const weeks = ts.length ? `Sem ${api.weekOf(Math.min(...ts.map(t => t.start)))}-${api.weekOf(Math.max(...ts.map(api.endOf)) - 1)} · ${ts.length} paquetes` : "";
+        cells.push({ id: pid, x, y: phaseY, w: colW, h: phaseH, style: box(hex(tint(rgb, 0.85)), p.color, `strokeWidth=2;fontSize=12;fontColor=${hex(shade(rgb, 0.45))};`),
+          value: `<b>${html(`${p.code}. ${p.name.toUpperCase()}`)}</b>` + (o.wbsDates && weeks ? `<br><font style="font-size:10px" color="#6b7385">${weeks}</font>` : "") });
+        cells.push({ id: `e-root-${pid}`, edge: true, source: "root", target: pid, style: "edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;strokeColor=#6b7385;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" });
+        ts.forEach((t, j) => {
+          const isCrit = o.critical && crit(t.code);
+          cells.push({ id: `T${t.code}`, x: x + 22, y: phaseY + phaseH + 16 + j * (taskH + vgap), w: taskW, h: taskH,
+            style: box("#ffffff", isCrit ? "#dc2626" : "#c8cdd7", `align=left;spacingLeft=8;fontSize=11;fontColor=#1c2230;${isCrit ? "strokeWidth=2;" : ""}`),
+            value: html(`${t.code} ${t.name}`) + (o.wbsDates ? `<br><font style="font-size:9px" color="#6b7385">${api.fmt(t.start)} a ${api.fmt(api.lastDay(t))} · ${t.duration} d</font>` : "") });
+          cells.push({ id: `e-${pid}-${t.code}`, edge: true, source: pid, target: `T${t.code}`, style: "edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;strokeColor=#6b7385;exitX=0.06;exitY=1;entryX=0;entryY=0.5;" });
+        });
+      });
+      pages.push(page("wbs", "WBS", cells));
+    }
+
+    /* --- Gantt: tabla + barras por semana --- */
+    if (o.gantt) {
+      const cells = [];
+      const msMax = o.milestones && state.milestones.length ? Math.max(...state.milestones.map(m => m.day)) : 0;
+      const from = Math.floor(ps / 7) * 7, to = Math.ceil(Math.max(pe, msMax) / 7) * 7;
+      const DX = 7, RH = 26, HEAD = 40;
+      const cols = [["Cód.", 44], ["Paquete de trabajo", 250], ["Inicio", 74], ["Fin", 74], ["Días", 44]];
+      const leftW = cols.reduce((s, c) => s + c[1], 0);
+      const X0 = leftW + 12, X = d => X0 + (d - from) * DX;
+      const rows = [];
+      for (const p of phases) { rows.push({ p }); for (const t of api.tasksOf(p.code)) rows.push({ p, t }); }
+      if (o.milestones && state.milestones.length) { rows.push({ mshead: true }); state.milestones.forEach(m => rows.push({ m })); }
+      const H = HEAD + rows.length * RH;
+
+      // Cabecera: columnas, meses y semanas
+      let cx = 0;
+      for (const [label, w] of cols) { cells.push({ id: `h-${label}`, x: cx, y: 0, w, h: HEAD, style: text("fontStyle=1;fontSize=11;fontColor=#6b7385;verticalAlign=bottom;spacingBottom=4;"), value: label }); cx += w; }
+      const meses = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+      for (let d = from; d < to;) {
+        const dt = api.dayToDate(d);
+        const nd = Math.min(to, d + Math.round((Date.UTC(dt.getUTCFullYear(), dt.getUTCMonth() + 1, 1) - dt.getTime()) / 86400000));
+        cells.push({ id: `m${d}`, x: X(d), y: 0, w: (nd - d) * DX, h: HEAD / 2, style: "rounded=0;html=1;fillColor=#f6f7fb;strokeColor=#c8cdd7;fontSize=11;fontStyle=1;fontColor=#1c2230;", value: (nd - d) * DX > 40 ? `${meses[dt.getUTCMonth()]} ${dt.getUTCFullYear()}` : "" });
+        d = nd;
+      }
+      for (let w = from; w < to; w += 7) {
+        cells.push({ id: `w${w}`, x: X(w), y: HEAD / 2, w: 7 * DX, h: HEAD / 2, style: "rounded=0;html=1;fillColor=#ffffff;strokeColor=#e8ebf1;fontSize=9;fontColor=#6b7385;", value: `S${api.weekOf(w)}` });
+        cells.push({ id: `g${w}`, x: X(w), y: HEAD, w: 7 * DX, h: rows.length * RH, style: "rounded=0;html=1;fillColor=none;strokeColor=#e8ebf1;" });
+      }
+
+      rows.forEach((r, i) => {
+        const y = HEAD + i * RH, mid = y + RH / 2;
+        const rowCells = (vals, bold, color) => {
+          let x = 0;
+          vals.forEach((v, k) => { cells.push({ id: `c${i}-${k}`, x, y, w: cols[k][1], h: RH, style: text(`fontSize=11;fontColor=${color};${bold ? "fontStyle=1;" : ""}${k === 1 && !bold ? "spacingLeft=12;" : ""}${k === 4 ? "align=right;" : ""}`), value: html(v) }); x += cols[k][1]; });
+        };
+        if (r.t) {
+          const t = r.t, rgb = hexToRgb(r.p.color), isCrit = o.critical && crit(t.code);
+          rowCells([t.code, t.name, api.fmt(t.start), api.fmt(api.lastDay(t)), String(t.duration)], false, "#1c2230");
+          cells.push({ id: `B${t.code}`, x: X(t.start), y: mid - 8, w: Math.max(t.duration * DX, 4), h: 16, value: "",
+            style: `rounded=0;html=1;fillColor=${hex(tint(rgb, t.loe ? 0.75 : 0.55))};strokeColor=${isCrit ? "#dc2626" : r.p.color};${isCrit ? "strokeWidth=2;" : ""}${t.loe ? `fillStyle=hatch;gradientColor=none;` : ""}` });
+          cells.push({ id: `L${t.code}`, x: X(api.endOf(t)) + 4, y, w: 260, h: RH, style: text("fontSize=10;fontColor=#6b7385;"), value: html(t.name) });
+        } else if (r.p) {
+          const ts = api.tasksOf(r.p.code), rgb = hexToRgb(r.p.color);
+          const s = Math.min(...ts.map(t => t.start)), e = Math.max(...ts.map(api.endOf));
+          cells.push({ id: `rb${i}`, x: 0, y, w: X(to), h: RH, value: "", style: `rounded=0;html=1;strokeColor=none;fillColor=${hex(tint(rgb, 0.9))};` });
+          rowCells([r.p.code, r.p.name, api.fmt(s), api.fmt(e - 1), String(e - s)], true, hex(shade(rgb, 0.5)));
+          cells.push({ id: `P${r.p.code}`, x: X(s), y: mid - 4, w: (e - s) * DX, h: 8, value: "", style: `rounded=0;html=1;fillColor=${r.p.color};strokeColor=none;` });
+        } else if (r.mshead) {
+          cells.push({ id: `rb${i}`, x: 0, y, w: X(to), h: RH, value: "", style: "rounded=0;html=1;strokeColor=none;fillColor=#f6f7fb;" });
+          rowCells(["", "Hitos del Project Charter", "", "", ""], true, "#1c2230");
+        } else if (r.m) {
+          rowCells([r.m.id, r.m.name, "", api.fmt(r.m.day - 1), "0"], false, "#1c2230");
+          cells.push({ id: `M${i}`, x: X(r.m.day) - 8, y: mid - 8, w: 16, h: 16, value: "", style: "rhombus;html=1;fillColor=#1c2230;strokeColor=none;" });
+          cells.push({ id: `ML${i}`, x: X(r.m.day) + 12, y, w: 300, h: RH, style: text("fontSize=10;fontColor=#6b7385;"), value: html(`${r.m.name} · semana ${api.weekOf(r.m.day - 1)}`) });
+          cells.push({ id: `MV${i}`, x: X(r.m.day), y: HEAD, w: 1, h: rows.length * RH, value: "", style: "rounded=0;html=1;fillColor=none;strokeColor=#969baa;dashed=1;" });
+        }
+      });
+
+      if (o.deps) for (const t of state.tasks) for (const dc of t.deps) {
+        if (!state.tasks.some(x => x.code === dc)) continue;
+        const isCrit = o.critical && crit(t.code) && crit(dc);
+        cells.push({ id: `d-${dc}-${t.code}`, edge: true, source: `B${dc}`, target: `B${t.code}`,
+          style: `edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endSize=4;exitX=1;exitY=0.5;entryX=0;entryY=0.5;strokeColor=${isCrit ? "#dc2626" : "#969baa"};` });
+      }
+
+      // Leyenda de fases debajo
+      let lx = 0;
+      phases.forEach(p => {
+        cells.push({ id: `lg${p.code}`, x: lx, y: H + 20, w: 14, h: 10, value: "", style: `rounded=0;html=1;fillColor=${p.color};strokeColor=none;` });
+        cells.push({ id: `lgt${p.code}`, x: lx + 18, y: H + 14, w: 180, h: 22, style: text("fontSize=10;fontColor=#6b7385;"), value: html(`${p.code}. ${p.name}`) });
+        lx += 200;
+      });
+      pages.push(page("gantt", "Gantt", cells));
+    }
+
+    const xml = `<mxfile host="WBS y Gantt · Equipo 04" type="device">\n${pages.join("\n")}\n</mxfile>\n`;
+    const base = o.fileName || "wbs-gantt-migracion-aws";
+    if (window.EMBEDDED_VIEW) return { name: `${base}.zip`, blob: zipStore([{ name: `${base}.drawio`, data: new TextEncoder().encode(xml) }]) };
+    return { name: `${base}.drawio`, blob: new Blob([xml], { type: "application/vnd.jgraph.mxfile" }) };
+  }
+
   /* ZIP sin compresión (método "store"), suficiente para un archivo */
   function zipStore(files) {
     const crcTable = Array.from({ length: 256 }, (_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c >>> 0; });
@@ -710,5 +845,5 @@ ${tasks.join("\n")}
     return new Blob([...parts, ...central, end], { type: "application/zip" });
   }
 
-  window.Exporters = { pdf, msproject };
+  window.Exporters = { pdf, msproject, drawio };
 })();
