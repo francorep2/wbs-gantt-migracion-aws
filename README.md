@@ -7,7 +7,7 @@ Página web interactiva (HTML + CSS + JavaScript puro, sin dependencias) con la 
 Abrí `index.html` en el navegador (doble clic alcanza, no necesita servidor).
 
 ### Vista WBS
-- Organigrama con las 9 fases y sus 51 paquetes de trabajo.
+- Organigrama con las 9 fases y sus 67 paquetes de trabajo, cada uno con su responsable (rol) y la descripción del entregable.
 - Clic en una fase: contraer/expandir. Doble clic: renombrar.
 - Clic en un paquete: editar nombre, fechas, duración, avance, responsable, predecesoras y notas.
 - `+ paquete` agrega una tarea a la fase; `+ Fase` agrega una fase nueva.
@@ -57,4 +57,8 @@ js/app.js         Lógica: render WBS, Gantt, arrastre, ruta crítica, import/ex
 CONTEXTO.md       Contexto, decisiones y bitácora del proyecto
 ```
 
-Para cambiar los datos "de fábrica" editá `js/data.js`.
+Para cambiar los datos "de fábrica" editá `js/data.js`. Si cambiás la estructura, subí la versión de `STORAGE_KEY` en `app.js` para que los navegadores no sigan mostrando la copia vieja guardada.
+
+## Informe del TP
+
+`docs/informe-estado-tp.pdf`: estado del TP según el cronograma de clases (contenido visto hasta la U08), qué falta y cómo hacerlo, más los cambios hechos a la WBS. Se genera desde `docs/informe-estado-tp.html`.

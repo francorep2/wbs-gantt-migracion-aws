@@ -8,7 +8,7 @@ Caso: **Migración a AWS de Mercado Hogar S.R.L.** (PostgreSQL ~850 GB, ERP, e-c
 Este repo contiene una página web interactiva con la WBS del equipo y un diagrama de Gantt editable.
 
 ## Fuentes usadas
-- **WBS** (imagen `wbs.png` enviada por Franco): 9 fases y 51 paquetes de trabajo. La estructura y los nombres se copiaron tal cual.
+- **WBS** (imagen `wbs.png` enviada por Franco): 9 fases y 51 paquetes de trabajo. En la revisión v2 (13/10) se completó a 67 paquetes con lo que pedían el Charter y el Anexo I (detalle y motivos en `docs/informe-estado-tp.pdf`).
 - **Anexo I - Contexto Mercado Hogar**, sección 10: 26 semanas en 8 fases.
 - **Project Charter del Equipo 04**: hitos en semanas 3, 6, 10, 15, 20, 23, 24 y 26.
 
@@ -34,6 +34,8 @@ Este repo contiene una página web interactiva con la WBS del equipo y un diagra
 - **Sin `prompt()`/`confirm()` nativos**: se usan diálogos propios para que funcione también embebido (vista previa publicada en claude.ai, donde esos diálogos están bloqueados).
 - **Vista previa online**: el repo es privado (GitHub Pages no aplica gratis), así que se publicó una versión de un solo archivo como Artifact de Claude: https://claude.ai/artifact/6buZvVwtLuF1NGsosveiEZ . Ahí no funcionan exportar e imprimir; esas opciones se ocultan con `window.EMBEDDED_VIEW`.
 - **Ruta crítica**: se calcula sobre las fechas planificadas (holgura total = fin tardío − fin planificado).
+- **Responsables**: `owner` usa los 11 perfiles del Anexo I (sección 8). Las notas de cada paquete describen el entregable y alimentan el diccionario de la WBS.
+- **`STORAGE_KEY` v2**: al cambiar la WBS se subió la versión para que el navegador cargue los datos nuevos (los cambios guardados con la v1 no se migran).
 
 - **Exportación PDF**: se dibuja con jsPDF (vectorial, A3 apaisado) en vez de capturar pantalla, para que salga nítido y con los colores de cada fase. jsPDF va copiado en `js/vendor/` para que ande sin internet; la versión publicada lo carga de cdnjs.
 - **Exportación MS Project**: formato MSPDI (XML), con un calendario de 7 días laborables para respetar las duraciones en días corridos y restricción "No comenzar antes del" en cada paquete para conservar las fechas planificadas. El XML no admite colores de barras.
@@ -43,12 +45,15 @@ Este repo contiene una página web interactiva con la WBS del equipo y un diagra
 
 ## Pendientes / ideas
 - Validar con el equipo duraciones y dependencias de detalle.
-- Cargar responsables (matriz RACI / recursos de la U07) y avance real.
+- Ya hay un responsable (rol) por paquete; falta armar la RACI completa (U07) y cargar el avance real.
+- La ruta crítica abarca 46 de 67 paquetes porque cada fase está ajustada a su hito sin colchón: evaluar una reserva de cronograma.
+- Lo que falta del TP y cómo hacerlo está en `docs/informe-estado-tp.pdf`.
 - Posible: dependencias de otros tipos (CC, FF), recursos y costos por tarea.
 
 ## Bitácora
 | Fecha | Cambio | Rama / PR |
 |---|---|---|
+| 2026-10-13 | WBS v2: 67 paquetes (staging, EC2, VPN, DMS, AWS Backup, aprobaciones de hitos, integración, rollback, transferencia operativa, fase 9 completa), responsables y descripción por paquete. Informe `docs/informe-estado-tp.pdf`. | `feature/wbs-v2-informe` |
 | 2026-10-13 | Exportar a draw.io (.drawio): páginas WBS y Gantt editables. Se oculta el selector de hoja fuera de PDF. | `feature/exportar-drawio` |
 | 2026-10-13 | Panel de exportación personalizada: secciones, columnas, fases/paquetes, hoja A3/A4 y nombre de archivo. | `feature/exportacion-personalizada` |
 | 2026-10-13 | Exportar a PDF (WBS y Gantt / informe detallado) y a MS Project XML (simple / detallado). | `feature/exportar-pdf-msproject` |

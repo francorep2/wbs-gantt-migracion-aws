@@ -5,7 +5,7 @@
 (() => {
   "use strict";
 
-  const STORAGE_KEY = "wbs-gantt-mercado-hogar-v1";
+  const STORAGE_KEY = "wbs-gantt-mercado-hogar-v2"; // v2: WBS revisada (67 paquetes)
   const THEME_KEY = "wbs-gantt-theme";
   const DAY_MS = 86400000;
   const ZOOM_PX = { day: 28, week: 9, month: 3.5 };
