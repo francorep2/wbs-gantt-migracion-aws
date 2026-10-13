@@ -43,16 +43,20 @@ Este repo contiene una página web interactiva con la WBS del equipo y un diagra
 - **Exportación draw.io**: archivo `.drawio` (XML de mxGraph sin comprimir) con dos páginas, WBS y Gantt, armadas con formas sueltas (no imagen) para que se puedan editar. Las dependencias son conectores pegados a las barras, así que siguen a la barra si se la mueve.
 - En la versión publicada en claude.ai las descargas usan la capacidad `downloads`, que no permite `.xml`: ahí los archivos de MS Project y draw.io se entregan dentro de un `.zip`.
 
+- **Interfaz minimalista (13/10)**: el resumen pasó de 6 tarjetas a una línea bajo el título; la ruta crítica se marca con un subrayado rojo (antes borde rojo en casi todas las barras); las dependencias arrancan apagadas; los hitos ocupan una fila desplegable; se sacaron la columna "%" del Gantt, las barras de avance vacías de la WBS y las opciones de exportar repetidas en el menú Archivo. En el panel de exportación las opciones de una sección solo aparecen si la sección está tildada. La página ya no scrollea entera: scrollean la WBS y el Gantt, con la cabecera fija.
+- **Red del cronograma cerrada (13/10)**: toda actividad tiene sucesora salvo el cierre (9.7). Se agregó 8.2 y 8.4 → 5.7 (el Go/No-Go del hito "Pruebas y capacitación" espera la capacitación) y 7.1–7.4 → 9.7. Los datos guardados en el navegador se ajustan solos (`migrate()` en app.js, sin perder ediciones).
+
 ## Pendientes / ideas
 - Validar con el equipo duraciones y dependencias de detalle.
 - Ya hay un responsable (rol) por paquete; falta armar la RACI completa (U07) y cargar el avance real.
-- La ruta crítica abarca 46 de 67 paquetes porque cada fase está ajustada a su hito sin colchón: evaluar una reserva de cronograma.
+- La ruta crítica abarca 51 de 67 paquetes (46 antes de cerrar la red) porque cada fase está ajustada a su hito sin colchón: evaluar una reserva de cronograma.
 - Lo que falta del TP y cómo hacerlo está en `docs/informe-estado-tp.pdf`.
 - Posible: dependencias de otros tipos (CC, FF), recursos y costos por tarea.
 
 ## Bitácora
 | Fecha | Cambio | Rama / PR |
 |---|---|---|
+| 2026-10-13 | Limpieza de UX/UI (resumen en una línea, ruta crítica sutil, dependencias apagadas por defecto, hitos desplegables, panel de exportar más simple) y red del Gantt cerrada (8.2/8.4 → 5.7, 7.1–7.4 → 9.7). | `feature/ux-limpieza` |
 | 2026-10-13 | WBS v2: 67 paquetes (staging, EC2, VPN, DMS, AWS Backup, aprobaciones de hitos, integración, rollback, transferencia operativa, fase 9 completa), responsables y descripción por paquete. Informe `docs/informe-estado-tp.pdf`. | `feature/wbs-v2-informe` |
 | 2026-10-13 | Exportar a draw.io (.drawio): páginas WBS y Gantt editables. Se oculta el selector de hoja fuera de PDF. | `feature/exportar-drawio` |
 | 2026-10-13 | Panel de exportación personalizada: secciones, columnas, fases/paquetes, hoja A3/A4 y nombre de archivo. | `feature/exportacion-personalizada` |

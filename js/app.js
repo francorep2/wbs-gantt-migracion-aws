@@ -31,7 +31,7 @@
   /* Estado                                                              */
   /* ------------------------------------------------------------------ */
   let state;
-  const ui = { view: "wbs", zoom: "week", search: "", showDates: true, critical: true, deps: true, milestones: true, cascade: true };
+  const ui = { view: "wbs", zoom: "week", search: "", showDates: true, critical: true, deps: false, milestones: true, cascade: true, msOpen: false };
 
   function fromDefault() {
     const d = structuredClone(window.DEFAULT_PROJECT);
@@ -47,12 +47,24 @@
     };
   }
 
+  // Datos guardados antes de cerrar la red (13/10): las actividades sin sucesora pasan a alimentar el Go/No-Go y el cierre
+  function migrate(s) {
+    const add = { "5.7": ["8.2", "8.4"], "9.7": ["7.1", "7.2", "7.3", "7.4"] };
+    if (s.netFix) return s;
+    for (const [code, extra] of Object.entries(add)) {
+      const t = s.tasks.find(x => x.code === code);
+      if (t) for (const d of extra) if (!t.deps.includes(d) && s.tasks.some(x => x.code === d)) t.deps.push(d);
+    }
+    s.netFix = true;
+    return s;
+  }
+
   function load() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (parsed && Array.isArray(parsed.tasks) && Array.isArray(parsed.phases)) return parsed;
+        if (parsed && Array.isArray(parsed.tasks) && Array.isArray(parsed.phases)) return migrate(parsed);
       }
     } catch (_) { /* sin almacenamiento disponible */ }
     return fromDefault();
@@ -169,15 +181,14 @@
     const progress = Math.round(work.reduce((s, t) => s + t.duration * (t.progress || 0), 0) / totalDur);
     const crit = [...analysis.info.values()].filter(i => i.critical).length;
     const warn = [...analysis.info.values()].filter(i => i.violated).length;
-    const kpi = (value, label, extra) => el("div", { class: "kpi" }, el("b", { text: value }), el("span", { text: label }), extra);
+    const stat = (value, label, title) => el("span", { title }, el("b", { text: value }), ` ${label}`);
     $("#summary").replaceChildren(
-      kpi(`${Math.ceil((end - start) / 7)} semanas`, `${end - start} días corridos`),
-      kpi(fmt(start), "Inicio"),
-      kpi(fmt(end - 1), "Fin estimado"),
-      kpi(String(all.length), `paquetes en ${state.phases.length} fases`),
-      kpi(`${progress}%`, "Avance ponderado", el("div", { class: "kbar" }, el("i", { style: `width:${progress}%` }))),
-      kpi(String(crit), "tareas críticas"),
-      warn ? kpi(`⚠ ${warn}`, "dependencias no respetadas") : "",
+      stat(`${Math.ceil((end - start) / 7)}`, "semanas", `${end - start} días corridos`),
+      stat(`${fmt(start)} → ${fmt(end - 1)}`, "", "Inicio y fin estimado"),
+      stat(String(all.length), "paquetes", `${state.phases.length} fases`),
+      stat(String(crit), "críticos", "Paquetes en la ruta crítica (holgura 0)"),
+      stat(`${progress}%`, "avance", "Avance ponderado por duración"),
+      ...(warn ? [el("span", { class: "warn", title: "Dependencias no respetadas" }, `⚠ ${warn} dependencias`)] : []),
     );
   }
 
@@ -208,13 +219,13 @@
         const inf = analysis.info.get(t.code);
         return el("li", {},
           el("div", {
-            class: `wbs-node wbs-task${ui.critical && inf.critical ? " crit" : ""}${q && !matches(t) ? " dim" : ""}${q && matches(t) ? " hit" : ""}`,
+            class: `wbs-node wbs-task${q && !matches(t) ? " dim" : ""}${q && matches(t) ? " hit" : ""}`,
             onclick: () => openTask(t.code),
             onmouseenter: e => showTip(e, t), onmouseleave: hideTip,
           },
             el("span", { class: "code", text: t.code }), t.name,
             el("span", { class: "dates", text: `${fmt(t.start)} → ${fmt(lastDay(t))} · ${t.duration} d${t.owner ? " · " + t.owner : ""}` }),
-            el("div", { class: "prog" }, el("i", { style: `width:${t.progress || 0}%` })),
+            t.progress ? el("div", { class: "prog" }, el("i", { style: `width:${t.progress}%` })) : null,
           ));
       });
       items.push(el("li", { class: "add-li" }, el("button", { class: "wbs-add", onclick: () => openTask(null, p.code), text: "+ paquete" })));
@@ -299,7 +310,7 @@
     const head = el("div", { class: "g-head" },
       el("div", { class: "g-row" }, el("div", { class: "g-left" }, el("span", { text: "" })), el("div", { class: "g-track", style: `width:${width}px` }, topCells)),
       el("div", { class: "g-row" },
-        el("div", { class: "g-left" }, el("span", { text: "Cód." }), el("span", { text: "Tarea" }), el("span", { text: "Inicio" }), el("span", { text: "Fin" }), el("span", { class: "num", text: "Días" }), el("span", { class: "num", text: "%" })),
+        el("div", { class: "g-left" }, el("span", { text: "Cód." }), el("span", { text: "Tarea" }), el("span", { text: "Inicio" }), el("span", { text: "Fin" }), el("span", { class: "num", text: "Días" })),
         el("div", { class: "g-track", style: `width:${width}px` }, botCells)),
     );
 
@@ -317,7 +328,7 @@
         el("div", { class: "g-left", onclick: () => { p.collapsed = !p.collapsed; save(); renderGantt(); }, title: "Clic para contraer/expandir" },
           el("span", { text: p.code }), el("span", { class: "name", text: p.name }),
           el("span", { text: s != null ? fmt(s) : "" }), el("span", { text: e != null ? fmt(e - 1) : "" }),
-          el("span", { class: "num", text: s != null ? e - s : "" }), el("span", { class: "num", text: tasks.length ? prog : "" })),
+          el("span", { class: "num", text: s != null ? e - s : "" })),
         el("div", { class: "g-track", style: `width:${width}px` },
           s != null ? el("div", { class: "summary-bar", style: `left:${x(s)}px;width:${(e - s) * px}px` }) : null)));
       if (p.collapsed) { rowIndex.set("phase:" + p.code, rows.length - 1); for (const t of tasks) rowIndex.set(t.code, rows.length - 1); continue; }
@@ -331,7 +342,7 @@
           "data-code": t.code,
         },
           el("div", { class: "fill", style: `width:${t.progress || 0}%` }),
-          el("div", { class: "lbl", text: w > 40 ? `${t.progress || 0}%` : "" }),
+          el("div", { class: "lbl", text: t.progress && w > 40 ? `${t.progress}%` : "" }),
           el("div", { class: "handle" }));
         bar.addEventListener("pointerdown", e => startDrag(e, t, bar, px));
         bar.addEventListener("mouseenter", e => showTip(e, t));
@@ -341,23 +352,27 @@
           el("div", { class: "g-left", onclick: () => openTask(t.code), title: t.name },
             el("span", { text: t.code }), el("span", { class: "name", text: t.name }),
             el("span", { text: fmt(t.start) }), el("span", { text: fmt(lastDay(t)) }),
-            el("span", { class: "num", text: t.duration }), el("span", { class: "num", text: t.progress || 0 })),
+            el("span", { class: "num", text: t.duration })),
           el("div", { class: "g-track", style: `width:${width}px` }, bar,
             el("div", { class: "bar-out", style: `left:${x(endOf(t)) + 6}px`, text: t.name }))));
       }
     }
     if (ui.milestones && state.milestones.length) {
-      rows.push(el("div", { class: "g-row ms" },
-        el("div", { class: "g-left" }, el("span", { text: "◆" }), el("span", { class: "name", text: "Hitos del Project Charter" })),
+      // Una fila con todos los hitos; al hacer clic se despliega uno por fila con su fecha
+      rows.push(el("div", { class: `g-row phase ms${ui.msOpen ? "" : " collapsed"}` },
+        el("div", { class: "g-left", onclick: () => { ui.msOpen = !ui.msOpen; renderGantt(); }, title: "Clic para ver cada hito con su fecha" },
+          el("span", { text: "◆" }), el("span", { class: "name", text: "Hitos del Project Charter" })),
         el("div", { class: "g-track", style: `width:${width}px` },
-          state.milestones.map(m =>
-            el("div", { class: "diamond", style: `left:${x(m.day)}px`, title: `${m.id} · ${m.name} · ${fmt(m.day - 1)} (fin semana ${weekOf(m.day - 1)})` })))));
-      for (const m of state.milestones) {
+          state.milestones.flatMap((m, i, all) => [
+            el("div", { class: "diamond", style: `left:${x(m.day)}px`, title: `${m.id} · ${m.name} · ${fmt(m.day - 1)} (fin semana ${weekOf(m.day - 1)})` }),
+            // la etiqueta se omite si el hito siguiente está demasiado cerca (se ve igual en el tooltip)
+            all[i + 1] && (all[i + 1].day - m.day) * px < 34 ? null : el("div", { class: "diamond-lbl", style: `left:${x(m.day)}px`, text: m.id })]))));
+      if (ui.msOpen) for (const m of state.milestones) {
         rows.push(el("div", { class: "g-row ms" },
-          el("div", { class: "g-left" }, el("span", { text: m.id }), el("span", { class: "name", text: m.name }), el("span", { text: "" }), el("span", { text: fmt(m.day - 1) }), el("span", { class: "num", text: "0" }), el("span", { text: "" })),
+          el("div", { class: "g-left" }, el("span", { text: m.id }), el("span", { class: "name", text: m.name }), el("span", { text: "" }), el("span", { text: fmt(m.day - 1) }), el("span", { class: "num", text: `S${weekOf(m.day - 1)}` })),
           el("div", { class: "g-track", style: `width:${width}px` },
             el("div", { class: "diamond", style: `left:${x(m.day)}px` }),
-            el("div", { class: "diamond-lbl", style: `left:${x(m.day)}px`, text: `Semana ${weekOf(m.day - 1)}` }))));
+            el("div", { class: "diamond-lbl", style: `left:${x(m.day)}px`, text: m.name }))));
       }
     }
 
@@ -688,23 +703,21 @@
     if (exp.format === "pdf") {
       box.replaceChildren(...PDF_SECTIONS.map(([key, label, hint, subs]) => {
         const sec = exp.pdf[key];
-        return el("fieldset", { class: `exp-sec${sec.on ? "" : " collapsed"}` },
-          el("legend", {},
-            el("label", { class: "chk main" }, el("input", { type: "checkbox", checked: sec.on, onchange: e => { sec.on = e.target.checked; changed(); } }), el("span", { text: label })),
-            el("small", { text: hint })),
-          el("div", { class: "subs" }, subs.map(([sk, sl]) => check(sec[sk], e => { sec[sk] = e.target.checked; changed(); }, sl, { disabled: !sec.on }))));
+        return el("div", { class: `exp-sec${sec.on ? " on" : ""}` },
+          el("label", { class: "chk main" }, el("input", { type: "checkbox", checked: sec.on, onchange: e => { sec.on = e.target.checked; changed(); } }),
+            el("span", { text: label }), el("small", { text: hint })),
+          sec.on ? el("div", { class: "subs" }, subs.map(([sk, sl]) => check(sec[sk], e => { sec[sk] = e.target.checked; changed(); }, sl))) : null);
       }));
     } else if (exp.format === "dio") {
-      box.replaceChildren(el("fieldset", { class: "exp-sec" },
-        el("legend", {}, el("span", { class: "chk main", text: "Contenido del diagrama de draw.io" }), el("small", { text: "Cada hoja sale como una página del archivo, con formas editables" })),
-        el("div", { class: "subs" }, DIO_OPTS.map(([k, l]) => check(exp.dio[k], e => { exp.dio[k] = e.target.checked; changed(); }, l,
-          { disabled: (k === "wbsDates" && !exp.dio.wbs) || (["deps", "milestones"].includes(k) && !exp.dio.gantt) }))),
-        el("p", { class: "exp-note", text: "Se abre en app.diagrams.net o en draw.io de escritorio (Archivo > Abrir). Conserva los colores de cada fase." })));
+      box.replaceChildren(el("div", { class: "exp-sec on" },
+        el("div", { class: "subs one" }, DIO_OPTS.filter(([k]) => !((k === "wbsDates" && !exp.dio.wbs) || (["deps", "critical", "milestones"].includes(k) && !exp.dio.gantt)))
+          .map(([k, l]) => check(exp.dio[k], e => { exp.dio[k] = e.target.checked; changed(); }, l))),
+        el("p", { class: "exp-note", text: "Cada hoja es una página editable con los colores de cada fase. Se abre en app.diagrams.net (Archivo > Abrir)." })));
     } else {
-      box.replaceChildren(el("fieldset", { class: "exp-sec" },
-        el("legend", {}, el("span", { class: "chk main", text: "Contenido del archivo de MS Project" }), el("small", { text: "Siempre incluye fases, paquetes, fechas y duraciones" })),
-        el("div", { class: "subs" }, MSP_OPTS.map(([k, l]) => check(exp.msp[k], e => { exp.msp[k] = e.target.checked; changed(); }, l))),
-        el("p", { class: "exp-note", text: "MS Project no guarda colores de barras en XML. Con el campo Fase podés colorear desde Formato > Estilos de barra o agrupar por fase." })));
+      box.replaceChildren(el("div", { class: "exp-sec on" },
+        el("p", { class: "exp-note", text: "Siempre incluye fases, paquetes, fechas y duraciones." }),
+        el("div", { class: "subs one" }, MSP_OPTS.map(([k, l]) => check(exp.msp[k], e => { exp.msp[k] = e.target.checked; changed(); }, l))),
+        el("p", { class: "exp-note", text: "Se abre en Project con Archivo > Abrir (formato XML). El XML no guarda colores: usá el campo Fase para colorear o agrupar." })));
     }
 
     // Fases y paquetes
