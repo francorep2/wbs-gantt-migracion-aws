@@ -11,7 +11,7 @@
   <header class="topbar">
     <div class="brand">
       <h1 id="project-name" title="Doble clic para editar">Migración a AWS - Mercado Hogar S.R.L.</h1>
-      <p class="subtitle">WBS y cronograma · Equipo 04 · Dirección de Proyectos</p>
+      <p class="subtitle"><span>Equipo 04 · Dirección de Proyectos</span><span id="summary" class="stats"></span></p>
     </div>
     <nav class="tabs" role="tablist">
       <button class="tab active" data-view="wbs" role="tab">WBS</button>
@@ -23,11 +23,6 @@
       <div class="menu">
         <button class="btn" id="menu-btn">Archivo ▾</button>
         <div class="menu-list" id="menu-list" hidden>
-          <span class="menu-label">Exportar</span>
-          <button data-action="export-pdf">PDF con colores…</button>
-          <button data-action="export-msp">MS Project (.xml)…</button>
-          <button data-action="export-dio">draw.io (.drawio)…</button>
-          <hr>
           <button data-action="export-json">Exportar JSON</button>
           <button data-action="import-json">Importar JSON…</button>
           <button data-action="export-csv">Exportar CSV (Excel)</button>
@@ -40,17 +35,16 @@
     </div>
   </header>
 
-  <section class="summary" id="summary"></section>
-
   <!-- ====================== VISTA WBS ====================== -->
   <main id="view-wbs" class="view active">
     <div class="toolbar">
-      <input type="search" id="wbs-search" placeholder="Buscar paquete de trabajo…" aria-label="Buscar">
-      <label class="check"><input type="checkbox" id="wbs-show-dates" checked> Mostrar fechas</label>
-      <button class="btn" id="wbs-expand">Expandir todo</button>
-      <button class="btn" id="wbs-collapse">Contraer todo</button>
-      <button class="btn primary" id="wbs-add-phase">+ Fase</button>
-      <span class="hint">Clic en una tarea para editarla · clic en una fase para contraerla</span>
+      <input type="search" id="wbs-search" placeholder="Buscar paquete…" aria-label="Buscar paquete">
+      <label class="check"><input type="checkbox" id="wbs-show-dates" checked> Fechas</label>
+      <span class="sep"></span>
+      <button class="btn quiet" id="wbs-expand">Expandir</button>
+      <button class="btn quiet" id="wbs-collapse">Contraer</button>
+      <span class="spacer"></span>
+      <button class="btn quiet" id="wbs-add-phase" title="Agregar una fase">+ Fase</button>
     </div>
     <div class="wbs-scroll">
       <div class="wbs" id="wbs"></div>
@@ -65,24 +59,24 @@
         <button data-zoom="week" class="active">Semanas</button>
         <button data-zoom="month">Meses</button>
       </div>
+      <span class="sep"></span>
       <label class="check"><input type="checkbox" id="g-critical" checked> Ruta crítica</label>
-      <label class="check"><input type="checkbox" id="g-deps" checked> Dependencias</label>
+      <label class="check"><input type="checkbox" id="g-deps"> Dependencias</label>
       <label class="check"><input type="checkbox" id="g-milestones" checked> Hitos</label>
-      <label class="check" title="Al mover o alargar una tarea, empuja las tareas que dependen de ella"><input type="checkbox" id="g-cascade" checked> Mover sucesoras</label>
-      <label class="check">Inicio <input type="date" id="start-date"></label>
-      <button class="btn primary" id="g-add-task">+ Tarea</button>
-      <span class="hint">Arrastrá una barra para moverla y su borde derecho para cambiar la duración</span>
+      <span class="spacer"></span>
+      <label class="check" title="Al mover o alargar una barra, empuja las tareas que dependen de ella"><input type="checkbox" id="g-cascade" checked> Mover sucesoras</label>
+      <label class="check" title="Fecha de inicio del proyecto">Inicio <input type="date" id="start-date"></label>
+      <button class="btn quiet" id="g-add-task" title="Agregar un paquete">+ Tarea</button>
     </div>
     <div class="gantt-scroll" id="gantt-scroll">
       <div class="gantt" id="gantt"></div>
     </div>
     <div class="legend">
-      <span><i class="lg tbar"></i> Tarea</span>
       <span><i class="lg crit"></i> Ruta crítica</span>
       <span><i class="lg loe"></i> Nivel de esfuerzo</span>
-      <span><i class="lg diamond"></i> Hito</span>
+      <span><i class="lg dia"></i> Hito</span>
       <span><i class="lg today"></i> Hoy</span>
-      <span><i class="lg warn"></i> Dependencia no respetada</span>
+      <span class="legend-hint">Arrastrá una barra para moverla y su borde derecho para cambiar la duración. Clic en una fila para editarla.</span>
     </div>
   </main>
 
@@ -145,7 +139,6 @@
           <button type="button" class="link" id="exp-none">Ninguno</button>
           <button type="button" class="link" id="exp-expand">Abrir/cerrar</button>
         </div>
-        <p class="exp-note">Destildá lo que no quieras en el archivo. Las fases sin paquetes elegidos no aparecen.</p>
         <ul class="exp-tree" id="exp-tree"></ul>
       </section>
     </div>

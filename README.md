@@ -17,11 +17,16 @@ Abrí `index.html` en el navegador (doble clic alcanza, no necesita servidor).
 - Escala por días, semanas o meses.
 - Arrastrar una barra la mueve; arrastrar su borde derecho cambia la duración.
 - Con "Mover sucesoras" activado, las tareas que dependen de la movida se empujan solas.
-- Flechas de dependencias Fin-Comienzo, **ruta crítica** (holgura 0), hitos del Project Charter y línea de "hoy".
+- **Ruta crítica** (holgura 0) marcada con un subrayado rojo en cada barra, hitos del Project Charter y línea de "hoy".
+- Las flechas de dependencias Fin-Comienzo vienen apagadas para no recargar el gráfico; se prenden con "Dependencias".
+- Los hitos se ven en una sola fila; clic en "Hitos del Project Charter" los despliega uno por fila con su fecha.
 - Se marcan en rojo punteado las dependencias que no se respetan.
 - Fecha de inicio del proyecto editable (todas las fechas se recalculan).
 
-### Exportar (botón azul o menú Archivo)
+### Resumen
+Debajo del título: semanas, fechas de inicio y fin, cantidad de paquetes, paquetes críticos y avance ponderado.
+
+### Exportar (botón azul)
 Abre un panel para elegir qué sale en el archivo:
 - **Formato**: PDF con colores, MS Project (.xml) o draw.io (.drawio).
 - **Partir de**: *WBS y Gantt* (lo básico), *Detallado* (todo) o *Vaciar*; después se ajusta a mano.
