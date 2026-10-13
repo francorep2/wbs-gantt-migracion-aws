@@ -2,9 +2,8 @@
  * Exportaciones: PDF (jsPDF, dibujado vectorial con colores) y
  * MS Project (formato XML de Microsoft Project, MSPDI).
  *
- * Cada exportador recibe `api` (estado + utilidades de app.js) y un modo:
- *   "simple" -> solo WBS y Gantt
- *   "full"   -> informe detallado
+ * Cada exportador recibe `api` (estado ya filtrado + utilidades de app.js)
+ * y un objeto de opciones armado en el panel "Exportar" (ver app.js),
  * y devuelve { name, blob }.
  * ===================================================================== */
 (() => {
@@ -31,28 +30,22 @@
   /* ------------------------------------------------------------------ */
   /* PDF                                                                 */
   /* ------------------------------------------------------------------ */
-  async function pdf(api, mode) {
+  async function pdf(api, o) {
     const { jsPDF } = window.jspdf || {};
     if (!jsPDF) throw new Error("no se pudo cargar la librería de PDF");
-    const full = mode === "full";
     const { state } = api;
-    const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a3" });
-    const PW = 420, PH = 297, M = 12;
-    const ctx = { doc, api, full, PW, PH, M };
+    const sizes = { a3: [420, 297], a4: [297, 210] };
+    const pageSize = sizes[o.pageSize] ? o.pageSize : "a3";
+    const [PW, PH] = sizes[pageSize];
+    const M = 12;
+    const sections = [[o.summary, drawSummaryPage], [o.wbs, drawWBS], [o.gantt, drawGantt], [o.dictionary, drawDictionary]].filter(([sec]) => sec?.on);
+    if (!sections.length) throw new Error("no elegiste ninguna sección para el PDF");
+    if (!state.tasks.length) throw new Error("no quedó ningún paquete seleccionado");
 
-    doc.setProperties({ title: `${state.name} - ${full ? "Informe de cronograma" : "WBS y Gantt"}`, subject: "WBS y diagrama de Gantt", creator: "WBS y Gantt · Equipo 04" });
-
-    if (full) {
-      drawSummaryPage(ctx);
-      doc.addPage();
-    }
-    drawWBS(ctx);
-    doc.addPage();
-    drawGantt(ctx);
-    if (full) {
-      doc.addPage();
-      drawDictionary(ctx);
-    }
+    const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: pageSize });
+    const ctx = { doc, api, o, PW, PH, M };
+    doc.setProperties({ title: `${state.name} - WBS y cronograma`, subject: "WBS y diagrama de Gantt", creator: "WBS y Gantt · Equipo 04" });
+    sections.forEach(([, draw], i) => { if (i) doc.addPage(); draw(ctx); });
 
     // Pie de página en todas las hojas
     const pages = doc.getNumberOfPages();
@@ -63,8 +56,7 @@
       doc.text(`Página ${i} de ${pages}`, PW - M, PH - 6, { align: "right" });
     }
 
-    const name = full ? "informe-cronograma-migracion-aws.pdf" : "wbs-gantt-migracion-aws.pdf";
-    return { name, blob: doc.output("blob") };
+    return { name: `${o.fileName || "cronograma-migracion-aws"}.pdf`, blob: doc.output("blob") };
   }
 
   function pageHeader(ctx, title, subtitle) {
@@ -93,7 +85,8 @@
 
   /* --- Hoja WBS --- */
   function drawWBS(ctx) {
-    const { doc, api, full, PW, PH, M } = ctx;
+    const { doc, api, o, PW, PH, M } = ctx;
+    const dates = !!o.wbs.dates, markCrit = !!o.wbs.critical;
     const { state } = api;
     let y = pageHeader(ctx, "Estructura de Desglose del Trabajo (WBS)", `${state.name} · ${api.state.tasks.length} paquetes de trabajo en ${state.phases.length} fases`);
     const phases = sortedPhases(api);
@@ -103,19 +96,20 @@
     const pad = 2.2;
 
     // Medidas de texto
-    const phaseFs = n > 10 ? 7 : 8.6, taskFs = n > 10 ? 6.6 : 8, dateFs = 6.4;
+    const small = colW < 34;
+    const phaseFs = small ? 6.4 : 8.6, taskFs = small ? 6 : 8, dateFs = small ? 5.2 : 6.4;
     const lh = fs => fs * 0.3528 * 1.18; // alto de línea en mm
 
     // Raíz
     const [ps, pe] = projectSpan(api);
     doc.setFont("helvetica", "bold").setFontSize(10);
     const rootLines = doc.splitTextToSize(state.name.toUpperCase(), 92);
-    const rootH = rootLines.length * lh(10) + (full ? 8 : 5);
+    const rootH = rootLines.length * lh(10) + (dates ? 8 : 5);
     const rootW = 100, rootX = (PW - rootW) / 2;
     doc.setDrawColor(...INK).setLineWidth(0.6).setFillColor(255, 255, 255);
     doc.roundedRect(rootX, y, rootW, rootH, 2, 2, "FD");
     doc.setTextColor(...INK).text(rootLines, PW / 2, y + 2.5 + lh(10) * 0.8, { align: "center" });
-    if (full) {
+    if (dates) {
       doc.setFont("helvetica", "normal").setFontSize(7).setTextColor(...MUTED);
       doc.text(`${api.fmt(ps)} a ${api.fmt(pe - 1)} · ${Math.ceil((pe - ps) / 7)} semanas`, PW / 2, y + rootH - 2.2, { align: "center" });
     }
@@ -128,7 +122,7 @@
     // Medir alto de las cajas de fase para alinearlas
     doc.setFont("helvetica", "bold").setFontSize(phaseFs);
     const phaseLines = phases.map(p => doc.splitTextToSize(`${p.code}. ${p.name.toUpperCase()}`, colW - 2 * pad));
-    const phaseH = Math.max(...phaseLines.map(l => l.length)) * lh(phaseFs) + 2 * pad + (full ? 3.2 : 0.6);
+    const phaseH = Math.max(...phaseLines.map(l => l.length)) * lh(phaseFs) + 2 * pad + (dates ? 3.2 : 0.6);
     const phaseY = busY + 5;
 
     // Alto de cada tarea; si no entra en la hoja, se achica el espaciado
@@ -136,7 +130,7 @@
     const measure = t => {
       doc.setFont("helvetica", "normal").setFontSize(taskFs);
       const lines = doc.splitTextToSize(`${t.code} ${t.name}`, taskW - 2 * pad - 1);
-      return { lines, h: lines.length * lh(taskFs) + 2 * pad + (full ? lh(dateFs) + 0.6 : 0) };
+      return { lines, h: lines.length * lh(taskFs) + 2 * pad + (dates ? lh(dateFs) + 0.6 : 0) };
     };
     const colTasks = phases.map(p => api.tasksOf(p.code).map(t => ({ t, ...measure(t) })));
     const avail = PH - 14 - (phaseY + phaseH + 4);
@@ -154,7 +148,7 @@
       doc.setFont("helvetica", "bold").setFontSize(phaseFs).setTextColor(...shade(rgb, 0.45));
       doc.text(phaseLines[i], x + colW / 2, phaseY + pad + lh(phaseFs) * 0.8, { align: "center" });
       const tasks = colTasks[i];
-      if (full && tasks.length) {
+      if (dates && tasks.length) {
         const s = Math.min(...tasks.map(o => o.t.start)), e = Math.max(...tasks.map(o => api.endOf(o.t)));
         doc.setFont("helvetica", "normal").setFontSize(5.8).setTextColor(...MUTED);
         doc.text(`Sem ${api.weekOf(s)}-${api.weekOf(e - 1)} · ${tasks.length} paquetes`, x + colW / 2, phaseY + phaseH - 1.4, { align: "center" });
@@ -167,12 +161,12 @@
       for (const o of tasks) {
         const tx = x + 5;
         const inf = api.analysis.info.get(o.t.code) || {};
-        doc.setFillColor(255, 255, 255).setDrawColor(...(full && inf.critical ? CRIT : LINE)).setLineWidth(full && inf.critical ? 0.45 : 0.3);
+        doc.setFillColor(255, 255, 255).setDrawColor(...(markCrit && inf.critical ? CRIT : LINE)).setLineWidth(markCrit && inf.critical ? 0.45 : 0.3);
         doc.roundedRect(tx, ty, taskW, o.h, 1.2, 1.2, "FD");
         doc.setFillColor(...rgb).rect(tx, ty + 0.3, 1.1, o.h - 0.6, "F");
         doc.setFont("helvetica", "normal").setFontSize(taskFs).setTextColor(...INK);
         doc.text(o.lines, tx + pad + 1, ty + pad + lh(taskFs) * 0.8);
-        if (full) {
+        if (dates) {
           doc.setFontSize(dateFs).setTextColor(...MUTED);
           doc.text(`${api.fmt(o.t.start)} a ${api.fmt(api.lastDay(o.t))} · ${o.t.duration} d`, tx + pad + 1, ty + o.h - pad + 0.3);
         }
@@ -184,7 +178,7 @@
       if (tasks.length) doc.setDrawColor(...MUTED).setLineWidth(0.35).line(stemX, phaseY + phaseH, stemX, lastMid);
     });
 
-    if (full) {
+    if (markCrit) {
       doc.setFont("helvetica", "normal").setFontSize(7).setTextColor(...MUTED);
       doc.setDrawColor(...CRIT).setLineWidth(0.45).rect(M, PH - 16, 6, 3.5);
       doc.text("Paquete en la ruta crítica", M + 8, PH - 13.4);
@@ -193,7 +187,8 @@
 
   /* --- Hoja(s) Gantt --- */
   function drawGantt(ctx) {
-    const { doc, api, full, PW, PH, M } = ctx;
+    const { doc, api, o, PW, PH, M } = ctx;
+    const g = o.gantt;
     const { state } = api;
     const phases = sortedPhases(api);
     const [ps, pe] = projectSpan(api);
@@ -202,9 +197,12 @@
     const to = Math.ceil(Math.max(pe, msMax) / 7) * 7;
 
     // Columnas de la tabla izquierda
-    const cols = full
-      ? [["Cód.", 11, "l"], ["Paquete de trabajo", 62, "l"], ["Inicio", 15, "l"], ["Fin", 15, "l"], ["Días", 9, "r"], ["%", 8, "r"]]
-      : [["Cód.", 11, "l"], ["Paquete de trabajo", 70, "l"], ["Días", 9, "r"]];
+    const cols = [["Cód.", 11, "l", "code"], ["Paquete de trabajo", 0, "l", "name"]];
+    if (g.colDates) cols.push(["Inicio", 15, "l", "start"], ["Fin", 15, "l", "end"]);
+    if (g.colDays) cols.push(["Días", 9, "r", "days"]);
+    if (g.colProgress) cols.push(["%", 8, "r", "pct"]);
+    cols[1][1] = PW > 400 ? (cols.length > 4 ? 62 : 70) : (cols.length > 4 ? 44 : 52);
+    const cellVals = d => cols.map(c => d[c[3]]);
     const leftW = cols.reduce((s, c) => s + c[1], 0);
     const tx0 = M + leftW + 2, tw = PW - M - tx0;
     const px = tw / (to - from);
@@ -216,7 +214,7 @@
       rows.push({ kind: "phase", p });
       for (const t of api.tasksOf(p.code)) rows.push({ kind: "task", p, t });
     }
-    if (state.milestones.length) {
+    if (g.milestones && state.milestones.length) {
       rows.push({ kind: "mshead" });
       for (const m of state.milestones) rows.push({ kind: "ms", m });
     }
@@ -275,11 +273,11 @@
       doc.line(tx0 - 1, top, tx0 - 1, yEnd);
 
       // Líneas de hitos y de hoy
-      for (const m of state.milestones) {
+      if (g.milestones) for (const m of state.milestones) {
         doc.setDrawColor(150, 155, 170).setLineWidth(0.25).setLineDashPattern([1, 1], 0).line(X(m.day), top + headH, X(m.day), yEnd);
       }
       doc.setLineDashPattern([], 0);
-      if (full) {
+      if (g.today) {
         const today = Math.floor((Date.now() - api.dayToDate(0).getTime()) / 86400000);
         if (today >= from && today <= to) doc.setDrawColor(...TODAY).setLineWidth(0.5).line(X(today), top + headH, X(today), yEnd);
       }
@@ -294,8 +292,7 @@
           const ts = api.tasksOf(r.p.code);
           const s = ts.length ? Math.min(...ts.map(t => t.start)) : null;
           const e = ts.length ? Math.max(...ts.map(api.endOf)) : null;
-          const vals = full ? [r.p.code, r.p.name, s != null ? api.fmt(s) : "", e != null ? api.fmt(e - 1) : "", s != null ? e - s : "", ts.length ? weightedProgress(api, ts) : ""]
-            : [r.p.code, r.p.name, s != null ? e - s : ""];
+          const vals = cellVals({ code: r.p.code, name: r.p.name, start: s != null ? api.fmt(s) : "", end: e != null ? api.fmt(e - 1) : "", days: s != null ? e - s : "", pct: ts.length ? weightedProgress(api, ts) : "" });
           drawCells(doc, cols, vals, M + 1, textY, fs, true, shade(rgb, 0.5));
           if (s != null) {
             const bh = rowH * 0.32;
@@ -307,7 +304,7 @@
           const t = r.t, rgb = hexToRgb(r.p.color);
           const inf = api.analysis.info.get(t.code) || {};
           rowY.set(t.code, { page: doc.getNumberOfPages(), y: mid });
-          const vals = full ? [t.code, t.name, api.fmt(t.start), api.fmt(api.lastDay(t)), t.duration, t.progress || 0] : [t.code, t.name, t.duration];
+          const vals = cellVals({ code: t.code, name: t.name, start: api.fmt(t.start), end: api.fmt(api.lastDay(t)), days: t.duration, pct: t.progress || 0 });
           drawCells(doc, cols, vals, M + 1, textY, fs, false, INK, 3);
           doc.setDrawColor(...GRID).setLineWidth(0.15).line(M, y + rowH, tx0 - 1, y + rowH);
           const bh = rowH * 0.62, bx = X(t.start), bw = Math.max(t.duration * px, 0.8);
@@ -319,24 +316,26 @@
             doc.setFillColor(...tint(rgb, 0.6)).rect(bx, mid - bh / 2, bw, bh, "F");
             if (t.progress) doc.setFillColor(...rgb).rect(bx, mid - bh / 2, bw * t.progress / 100, bh, "F");
           }
-          const critical = full && inf.critical;
+          const critical = g.critical && inf.critical;
           doc.setDrawColor(...(critical ? CRIT : rgb)).setLineWidth(critical ? 0.5 : 0.25).rect(bx, mid - bh / 2, bw, bh, "S");
-          doc.setFont("helvetica", "normal").setFontSize(fs - 1).setTextColor(...MUTED);
-          const label = full ? t.name : `${t.code} ${t.name}`;
-          const lx = bx + bw + 1.2;
-          const lw = doc.getTextWidth(label);
-          if (lx + lw < PW - M) doc.text(label, lx, textY);
-          else if (bx - 1.2 - lw > tx0) doc.text(label, bx - 1.2, textY, { align: "right" });
-          else {
-            doc.setFillColor(255, 255, 255).rect(bx + 1, mid - bh / 2 + 0.3, lw + 1.6, bh - 0.6, "F");
-            doc.setTextColor(...INK).text(label, bx + 1.8, textY);
+          if (g.labels) {
+            doc.setFont("helvetica", "normal").setFontSize(fs - 1).setTextColor(...MUTED);
+            const label = t.name;
+            const lx = bx + bw + 1.2;
+            const lw = doc.getTextWidth(label);
+            if (lx + lw < PW - M) doc.text(label, lx, textY);
+            else if (bx - 1.2 - lw > tx0) doc.text(label, bx - 1.2, textY, { align: "right" });
+            else {
+              doc.setFillColor(255, 255, 255).rect(bx + 1, mid - bh / 2 + 0.3, lw + 1.6, bh - 0.6, "F");
+              doc.setTextColor(...INK).text(label, bx + 1.8, textY);
+            }
           }
         } else if (r.kind === "mshead") {
           doc.setFillColor(246, 247, 251).rect(M, y, PW - 2 * M, rowH, "F");
           drawCells(doc, cols, ["", "Hitos del Project Charter"], M + 1, textY, fs, true, INK);
           for (const m of state.milestones) diamond(doc, X(m.day), mid, rowH * 0.32);
         } else if (r.kind === "ms") {
-          const vals = full ? [r.m.id, r.m.name, "", api.fmt(r.m.day - 1), "0", ""] : [r.m.id, r.m.name, "0"];
+          const vals = cellVals({ code: r.m.id, name: r.m.name, start: "", end: api.fmt(r.m.day - 1), days: "0", pct: "" });
           drawCells(doc, cols, vals, M + 1, textY, fs, false, INK, 3);
           diamond(doc, X(r.m.day), mid, rowH * 0.3);
           doc.setFont("helvetica", "normal").setFontSize(fs - 1).setTextColor(...MUTED);
@@ -346,8 +345,8 @@
         }
       });
 
-      // Dependencias (solo informe detallado, dentro de la misma hoja)
-      if (full) {
+      // Dependencias (dentro de la misma hoja)
+      if (g.deps) {
         const page = doc.getNumberOfPages();
         for (const r of pageRows) {
           if (r.kind !== "task") continue;
@@ -374,24 +373,23 @@
       }
 
       // Leyenda
+      if (!g.legend) return;
       const ly = PH - 19;
       doc.setFont("helvetica", "normal").setFontSize(6.8).setTextColor(...MUTED);
       let lx = M;
-      const item = (draw, text) => { draw(lx, ly); doc.setTextColor(...MUTED).text(text, lx + 8, ly + 2.4); lx += 12 + doc.getTextWidth(text); };
+      const item = (yy, draw, text) => { draw(lx, yy); doc.setTextColor(...MUTED).text(text, lx + 8, yy + 2.4); lx += 12 + doc.getTextWidth(text); };
       for (const p of phases) {
         const rgb = hexToRgb(p.color);
-        item((x, yy) => doc.setFillColor(...rgb).rect(x, yy, 6, 3, "F"), `${p.code}. ${p.name}`);
+        if (lx > PW - M - 40) break;
+        item(ly, (x, yy) => doc.setFillColor(...rgb).rect(x, yy, 6, 3, "F"), `${p.code}. ${p.name}`);
       }
       lx = M;
       const ly2 = ly + 5;
-      const item2 = (draw, text) => { draw(lx, ly2); doc.setTextColor(...MUTED).text(text, lx + 8, ly2 + 2.4); lx += 12 + doc.getTextWidth(text); };
-      item2((x, yy) => diamond(doc, x + 3, yy + 1.5, 1.6), "Hito");
-      item2((x, yy) => doc.setFillColor(200, 200, 210).rect(x, yy + 0.5, 6, 2, "F"), "Nivel de esfuerzo (rayado)");
-      if (full) {
-        item2((x, yy) => doc.setDrawColor(...CRIT).setLineWidth(0.5).rect(x, yy, 6, 3, "S"), "Ruta crítica");
-        item2((x, yy) => doc.setDrawColor(...TODAY).setLineWidth(0.6).line(x + 3, yy - 0.5, x + 3, yy + 3.5), "Hoy");
-        item2((x, yy) => doc.setDrawColor(150, 155, 170).setLineWidth(0.25).line(x, yy + 1.5, x + 6, yy + 1.5), "Dependencia fin-comienzo");
-      }
+      if (g.milestones) item(ly2, (x, yy) => diamond(doc, x + 3, yy + 1.5, 1.6), "Hito");
+      if (state.tasks.some(t => t.loe)) item(ly2, (x, yy) => doc.setFillColor(200, 200, 210).rect(x, yy + 0.5, 6, 2, "F"), "Nivel de esfuerzo (rayado)");
+      if (g.critical) item(ly2, (x, yy) => doc.setDrawColor(...CRIT).setLineWidth(0.5).rect(x, yy, 6, 3, "S"), "Ruta crítica");
+      if (g.today) item(ly2, (x, yy) => doc.setDrawColor(...TODAY).setLineWidth(0.6).line(x + 3, yy - 0.5, x + 3, yy + 3.5), "Hoy");
+      if (g.deps) item(ly2, (x, yy) => doc.setDrawColor(150, 155, 170).setLineWidth(0.25).line(x, yy + 1.5, x + 6, yy + 1.5), "Dependencia fin-comienzo");
     });
   }
 
@@ -420,9 +418,10 @@
 
   /* --- Portada / resumen (informe detallado) --- */
   function drawSummaryPage(ctx) {
-    const { doc, api, PW, M } = ctx;
+    const { doc, api, o, PW, M } = ctx;
     const { state } = api;
-    let y = pageHeader(ctx, "Informe de cronograma del proyecto", `${state.name} · WBS, cronograma, ruta crítica y diccionario de la WBS`);
+    const sm = o.summary;
+    let y = pageHeader(ctx, "Resumen del proyecto", state.name);
     const [ps, pe] = projectSpan(api);
     const infos = [...api.analysis.info.values()];
 
@@ -436,21 +435,24 @@
       [String(infos.filter(i => i.critical).length), "paquetes críticos"],
     ];
     const kw = (PW - 2 * M - 5 * 4) / 6;
-    kpis.forEach(([v, l], i) => {
+    if (sm.kpis) kpis.forEach(([v, l], i) => {
       const x = M + i * (kw + 4);
       doc.setDrawColor(...LINE).setLineWidth(0.3).setFillColor(250, 251, 253).roundedRect(x, y, kw, 18, 1.5, 1.5, "FD");
       doc.setFont("helvetica", "bold").setFontSize(15).setTextColor(...INK).text(v, x + 4, y + 9);
       doc.setFont("helvetica", "normal").setFontSize(8).setTextColor(...MUTED).text(l, x + 4, y + 14.5);
     });
-    y += 26;
+    if (sm.kpis) y += 26;
 
     // Tabla de fases
-    const colW = (PW - 2 * M - 10) / 2;
-    doc.setFont("helvetica", "bold").setFontSize(11).setTextColor(...INK).text("Fases", M, y);
-    let ty = y + 4;
-    const phCols = [["", 5, "l"], ["Fase", 74, "l"], ["Inicio", 20, "l"], ["Fin", 20, "l"], ["Semanas", 18, "r"], ["Paquetes", 18, "r"], ["Avance", 18, "r"]];
-    ty = tableHeader(doc, phCols, M, ty, colW);
-    for (const p of sortedPhases(api)) {
+    const both = sm.phases && sm.milestones;
+    const colW = both ? (PW - 2 * M - 10) / 2 : Math.min(PW - 2 * M, 200);
+    let ty = y;
+    const phCols = [["", 5, "l"], ["Fase", colW - 99, "l"], ["Inicio", 20, "l"], ["Fin", 20, "l"], ["Semanas", 18, "r"], ["Paquetes", 18, "r"], ["Avance", 18, "r"]];
+    if (sm.phases) {
+      doc.setFont("helvetica", "bold").setFontSize(11).setTextColor(...INK).text("Fases", M, y);
+      ty = tableHeader(doc, phCols, M, y + 4, colW);
+    }
+    if (sm.phases) for (const p of sortedPhases(api)) {
       const ts = api.tasksOf(p.code);
       const s = ts.length ? Math.min(...ts.map(t => t.start)) : null;
       const e = ts.length ? Math.max(...ts.map(api.endOf)) : null;
@@ -462,12 +464,15 @@
     }
 
     // Hitos
-    const x2 = M + colW + 10;
-    doc.setFont("helvetica", "bold").setFontSize(11).setTextColor(...INK).text("Hitos del Project Charter", x2, y);
-    let my = y + 4;
-    const msCols = [["", 6, "l"], ["Hito", 100, "l"], ["Semana", 20, "r"], ["Fecha", 26, "r"]];
-    my = tableHeader(doc, msCols, x2, my, colW);
-    for (const m of state.milestones) {
+    const x2 = both ? M + colW + 10 : M;
+    let my = y;
+    const msCols = [["", 6, "l"], ["Hito", colW - 52, "l"], ["Semana", 20, "r"], ["Fecha", 26, "r"]];
+    if (sm.milestones) {
+      if (!both) my = ty + (sm.phases ? 10 : 0);
+      doc.setFont("helvetica", "bold").setFontSize(11).setTextColor(...INK).text("Hitos del Project Charter", x2, my);
+      my = tableHeader(doc, msCols, x2, my + 4, colW);
+    }
+    if (sm.milestones) for (const m of state.milestones) {
       diamond(doc, x2 + 3, my + 3, 1.4);
       drawCells(doc, msCols, ["", `${m.id} · ${m.name}`, api.weekOf(m.day - 1), api.fmt(m.day - 1)], x2 + 1, my + 4, 8, false, INK);
       doc.setDrawColor(...GRID).setLineWidth(0.2).line(x2, my + 6, x2 + colW, my + 6);
@@ -475,7 +480,8 @@
     }
 
     // Ruta crítica
-    y = Math.max(ty, my) + 10;
+    y = Math.max(ty, my) + (sm.phases || sm.milestones ? 10 : 0);
+    if (sm.critical) {
     doc.setFont("helvetica", "bold").setFontSize(11).setTextColor(...INK).text("Ruta crítica", M, y);
     const crit = [...state.tasks].filter(t => api.analysis.info.get(t.code)?.critical).sort((a, b) => a.start - b.start || api.codeCmp(a.code, b.code));
     doc.setFont("helvetica", "normal").setFontSize(8.5).setTextColor(...INK);
@@ -483,8 +489,10 @@
     const critLines = doc.splitTextToSize(critText, PW - 2 * M);
     doc.text(critLines, M, y + 6);
     y += 6 + critLines.length * 4.2 + 6;
+    }
 
     // Supuestos
+    if (!sm.assumptions) return;
     doc.setFont("helvetica", "bold").setFontSize(11).setTextColor(...INK).text("Supuestos del cronograma", M, y);
     const notes = [
       `Inicio del proyecto: ${api.fmt(0)}. Las duraciones están en días corridos (semanas de 7 días).`,
@@ -503,15 +511,31 @@
     return y + 6;
   }
 
-  /* --- Diccionario de la WBS (informe detallado) --- */
+  /* --- Diccionario de la WBS --- */
   function drawDictionary(ctx) {
-    const { doc, api, PW, PH, M } = ctx;
-    const cols = [["Cód.", 12, "l"], ["Paquete de trabajo", 70, "l"], ["Inicio", 17, "l"], ["Fin", 17, "l"], ["Días", 10, "r"], ["Semanas", 16, "r"],
-      ["Predecesoras", 34, "l"], ["Holgura", 14, "r"], ["Crítica", 13, "l"], ["Avance", 13, "r"], ["Responsable", 34, "l"], ["Notas", PW - 2 * M - 250, "l"]];
+    const { doc, api, o, PW, PH, M } = ctx;
+    const dc = o.dictionary;
     const W = PW - 2 * M;
-    const start = () => tableHeader(doc, cols, M, pageHeader(ctx, "Diccionario de la WBS", "Detalle de cada paquete de trabajo: fechas, dependencias, holgura y responsable"), W);
+    const cols = [["Cód.", 12, "l", "code"], ["Paquete de trabajo", 70, "l", "name"]];
+    if (dc.dates) cols.push(["Inicio", 17, "l", "start"], ["Fin", 17, "l", "end"]);
+    if (dc.days) cols.push(["Días", 10, "r", "days"]);
+    if (dc.weeks) cols.push(["Semanas", 16, "r", "weeks"]);
+    if (dc.deps) cols.push(["Predecesoras", 34, "l", "deps"]);
+    if (dc.slack) cols.push(["Holgura", 14, "r", "slack"]);
+    if (dc.critical) cols.push(["Crítica", 13, "l", "crit"]);
+    if (dc.progress) cols.push(["Avance", 13, "r", "pct"]);
+    if (dc.owner) cols.push(["Responsable", 34, "l", "owner"]);
+    const used = cols.reduce((s, c) => s + c[1], 0);
+    const notesW = dc.notes ? Math.max(30, W - used) : 0;
+    const overflow = used + notesW - W;
+    if (overflow > 0) cols[1][1] = Math.max(36, cols[1][1] - overflow);
+    else if (!dc.notes) cols[1][1] += -overflow;
+    const allCols = dc.notes ? [...cols, ["Notas", notesW, "l", "notes"]] : cols;
+    const start = () => tableHeader(doc, allCols, M, pageHeader(ctx, "Diccionario de la WBS", "Detalle de cada paquete de trabajo"), W);
     let y = start();
     const fs = 7.5;
+    const critX = M + 1 + cols.slice(0, cols.findIndex(c => c[3] === "crit")).reduce((s, c) => s + c[1], 0);
+    const notesX = M + 1 + cols.reduce((s, c) => s + c[1], 0);
     for (const p of sortedPhases(api)) {
       const rgb = hexToRgb(p.color);
       if (y + 12 > PH - 16) { doc.addPage(); y = start(); }
@@ -522,32 +546,30 @@
       for (const t of api.tasksOf(p.code)) {
         const inf = api.analysis.info.get(t.code) || {};
         doc.setFont("helvetica", "normal").setFontSize(fs);
-        const notes = doc.splitTextToSize(t.notes || "", cols[11][1] - 2);
+        const notes = dc.notes ? doc.splitTextToSize(t.notes || "", notesW - 2) : [];
         const h = Math.max(5.6, notes.length * 3.2 + 2.4);
         if (y + h > PH - 16) { doc.addPage(); y = start(); }
-        drawCells(doc, cols.slice(0, 11), [t.code, t.name, api.fmt(t.start), api.fmt(api.lastDay(t)), t.duration,
-          `${api.weekOf(t.start)}-${api.weekOf(api.lastDay(t))}`, t.deps.join(", ") || "-", t.loe ? "n/a" : inf.slack,
-          t.loe ? "NE" : inf.critical ? "Sí" : "No", `${t.progress || 0}%`, t.owner || "-"], M + 1, y + 3.9, fs, false, INK);
-        if (inf.critical) {
-          const cx = M + 1 + cols.slice(0, 8).reduce((s, c) => s + c[1], 0);
-          doc.setFont("helvetica", "bold").setTextColor(...CRIT).text("Sí", cx, y + 3.9);
-        }
-        if (notes.length) {
-          doc.setFont("helvetica", "normal").setTextColor(...INK).text(notes, M + 1 + W - cols[11][1], y + 3.9);
-        }
+        const v = { code: t.code, name: t.name, start: api.fmt(t.start), end: api.fmt(api.lastDay(t)), days: t.duration,
+          weeks: `${api.weekOf(t.start)}-${api.weekOf(api.lastDay(t))}`, deps: t.deps.join(", ") || "-", slack: t.loe ? "n/a" : inf.slack,
+          crit: t.loe ? "NE" : inf.critical ? "" : "No", pct: `${t.progress || 0}%`, owner: t.owner || "-" };
+        drawCells(doc, cols, cols.map(c => v[c[3]]), M + 1, y + 3.9, fs, false, INK);
+        if (dc.critical && inf.critical) doc.setFont("helvetica", "bold").setTextColor(...CRIT).text("Sí", critX, y + 3.9);
+        if (notes.length) doc.setFont("helvetica", "normal").setTextColor(...INK).text(notes, notesX, y + 3.9);
         doc.setDrawColor(...GRID).setLineWidth(0.2).line(M, y + h, M + W, y + h);
         y += h;
       }
     }
-    doc.setFont("helvetica", "normal").setFontSize(7).setTextColor(...MUTED);
-    doc.text("NE: nivel de esfuerzo (no participa de la ruta crítica). Holgura en días.", M, Math.min(y + 6, PH - 12));
+    if (dc.critical || dc.slack) {
+      doc.setFont("helvetica", "normal").setFontSize(7).setTextColor(...MUTED);
+      doc.text("NE: nivel de esfuerzo (no participa de la ruta crítica). Holgura en días.", M, Math.min(y + 6, PH - 12));
+    }
   }
 
   /* ------------------------------------------------------------------ */
   /* MS Project (MSPDI XML)                                              */
   /* ------------------------------------------------------------------ */
-  function msproject(api, mode) {
-    const full = mode === "full";
+  function msproject(api, m) {
+    if (!api.state.tasks.length) throw new Error("no quedó ningún paquete seleccionado");
     const { state } = api;
     const esc = s => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
     const dt = (day, time) => `${api.isoDay(day)}T${time}`;
@@ -568,9 +590,9 @@
       for (const t of api.tasksOf(p.code)) uidByCode.set(t.code, uid++);
     }
     const msUid = uid++;
-    state.milestones.forEach((m, i) => uidByCode.set("H" + i, uid++));
+    state.milestones.forEach((_, i) => uidByCode.set("H" + i, uid++));
 
-    const owners = full ? [...new Set(state.tasks.map(t => (t.owner || "").trim()).filter(Boolean))] : [];
+    const owners = m.resources ? [...new Set(state.tasks.map(t => (t.owner || "").trim()).filter(Boolean))] : [];
     const resUid = new Map(owners.map((o, i) => [o, i + 1]));
     const assignments = [];
 
@@ -582,40 +604,40 @@
         `<WBS>${esc(p.code)}</WBS><OutlineNumber>${esc(p.code)}</OutlineNumber><OutlineLevel>1</OutlineLevel>` +
         `<Start>${dt(s, "08:00:00")}</Start><Finish>${dt(e - 1, "17:00:00")}</Finish><Duration>${dur(e - s)}</Duration><DurationFormat>7</DurationFormat>` +
         `<Summary>1</Summary><Milestone>0</Milestone>` +
-        (full ? `<PercentComplete>${weightedProgress(api, ts)}</PercentComplete>` : "") +
-        `<ExtendedAttribute><FieldID>188743731</FieldID><Value>${esc(p.name)}</Value></ExtendedAttribute>` +
+        (m.progress ? `<PercentComplete>${weightedProgress(api, ts)}</PercentComplete>` : "") +
+        (m.fields ? `<ExtendedAttribute><FieldID>188743731</FieldID><Value>${esc(p.name)}</Value></ExtendedAttribute>` : "") +
         `</Task>`);
       ts.forEach((t, i) => {
         const inf = api.analysis.info.get(t.code) || {};
-        const preds = full ? t.deps.filter(d => uidByCode.has(d)).map(d => `<PredecessorLink><PredecessorUID>${uidByCode.get(d)}</PredecessorUID><Type>1</Type><CrossProject>0</CrossProject><LinkLag>0</LinkLag><LagFormat>7</LagFormat></PredecessorLink>`).join("") : "";
-        const notes = full ? [t.notes, t.loe ? "Nivel de esfuerzo" : `Holgura total: ${inf.slack} días${inf.critical ? " (crítica)" : ""}`].filter(Boolean).join(" | ") : "";
+        const preds = m.deps ? t.deps.filter(d => uidByCode.has(d)).map(d => `<PredecessorLink><PredecessorUID>${uidByCode.get(d)}</PredecessorUID><Type>1</Type><CrossProject>0</CrossProject><LinkLag>0</LinkLag><LagFormat>7</LagFormat></PredecessorLink>`).join("") : "";
+        const notes = m.notes ? [t.notes, t.loe ? "Nivel de esfuerzo" : `Holgura total: ${inf.slack} días${inf.critical ? " (crítica)" : ""}`].filter(Boolean).join(" | ") : "";
         tasks.push(`<Task><UID>${uidByCode.get(t.code)}</UID><ID>${id++}</ID><Name>${esc(t.name)}</Name><Type>0</Type><IsNull>0</IsNull>` +
           `<WBS>${esc(t.code)}</WBS><OutlineNumber>${esc(p.code)}.${i + 1}</OutlineNumber><OutlineLevel>2</OutlineLevel>` +
           `<Start>${dt(t.start, "08:00:00")}</Start><Finish>${dt(api.lastDay(t), "17:00:00")}</Finish>` +
           `<Duration>${dur(t.duration)}</Duration><DurationFormat>7</DurationFormat><Summary>0</Summary><Milestone>0</Milestone>` +
           `<ConstraintType>4</ConstraintType><ConstraintDate>${dt(t.start, "08:00:00")}</ConstraintDate>` +
-          (full ? `<PercentComplete>${t.progress || 0}</PercentComplete>` : "") +
+          (m.progress ? `<PercentComplete>${t.progress || 0}</PercentComplete>` : "") +
           (notes ? `<Notes>${esc(notes)}</Notes>` : "") +
-          `<ExtendedAttribute><FieldID>188743731</FieldID><Value>${esc(p.name)}</Value></ExtendedAttribute>` +
-          (full ? `<ExtendedAttribute><FieldID>188743734</FieldID><Value>${inf.critical ? "Sí" : "No"}</Value></ExtendedAttribute>` : "") +
+          (m.fields ? `<ExtendedAttribute><FieldID>188743731</FieldID><Value>${esc(p.name)}</Value></ExtendedAttribute>` : "") +
+          (m.fields ? `<ExtendedAttribute><FieldID>188743734</FieldID><Value>${inf.critical ? "Sí" : "No"}</Value></ExtendedAttribute>` : "") +
           preds + `</Task>`);
-        if (full && t.owner && resUid.has(t.owner.trim())) {
+        if (m.resources && t.owner && resUid.has(t.owner.trim())) {
           assignments.push(`<Assignment><UID>${assignments.length + 1}</UID><TaskUID>${uidByCode.get(t.code)}</TaskUID><ResourceUID>${resUid.get(t.owner.trim())}</ResourceUID><Units>1</Units></Assignment>`);
         }
       });
     }
 
-    if (state.milestones.length) {
+    if (m.milestones && state.milestones.length) {
       const ms = state.milestones;
       const s = Math.min(...ms.map(m => m.day - 1)), e = Math.max(...ms.map(m => m.day - 1));
       const code = String(phases.length + 1);
       tasks.push(`<Task><UID>${msUid}</UID><ID>${id++}</ID><Name>Hitos del Project Charter</Name><Type>1</Type><IsNull>0</IsNull><WBS>${code}</WBS><OutlineNumber>${code}</OutlineNumber><OutlineLevel>1</OutlineLevel>` +
         `<Start>${dt(s, "17:00:00")}</Start><Finish>${dt(e, "17:00:00")}</Finish><Summary>1</Summary></Task>`);
-      ms.forEach((m, i) => {
-        tasks.push(`<Task><UID>${uidByCode.get("H" + i)}</UID><ID>${id++}</ID><Name>${esc(`${m.id} · ${m.name}`)}</Name><Type>1</Type><IsNull>0</IsNull>` +
+      ms.forEach((mi, i) => {
+        tasks.push(`<Task><UID>${uidByCode.get("H" + i)}</UID><ID>${id++}</ID><Name>${esc(`${mi.id} · ${mi.name}`)}</Name><Type>1</Type><IsNull>0</IsNull>` +
           `<WBS>${code}.${i + 1}</WBS><OutlineNumber>${code}.${i + 1}</OutlineNumber><OutlineLevel>2</OutlineLevel>` +
-          `<Start>${dt(m.day - 1, "17:00:00")}</Start><Finish>${dt(m.day - 1, "17:00:00")}</Finish><Duration>PT0H0M0S</Duration><DurationFormat>7</DurationFormat>` +
-          `<Milestone>1</Milestone><Summary>0</Summary><ConstraintType>2</ConstraintType><ConstraintDate>${dt(m.day - 1, "17:00:00")}</ConstraintDate></Task>`);
+          `<Start>${dt(mi.day - 1, "17:00:00")}</Start><Finish>${dt(mi.day - 1, "17:00:00")}</Finish><Duration>PT0H0M0S</Duration><DurationFormat>7</DurationFormat>` +
+          `<Milestone>1</Milestone><Summary>0</Summary><ConstraintType>2</ConstraintType><ConstraintDate>${dt(mi.day - 1, "17:00:00")}</ConstraintDate></Task>`);
       });
     }
 
@@ -623,7 +645,7 @@
       `<WorkingTime><FromTime>08:00:00</FromTime><ToTime>12:00:00</ToTime></WorkingTime><WorkingTime><FromTime>13:00:00</FromTime><ToTime>17:00:00</ToTime></WorkingTime>` +
       `</WorkingTimes></WeekDay>`).join("");
 
-    const resources = full ? owners.map((o, i) => `<Resource><UID>${i + 1}</UID><ID>${i + 1}</ID><Name>${esc(o)}</Name><Type>1</Type><IsNull>0</IsNull></Resource>`).join("") : "";
+    const resources = m.resources ? owners.map((o, i) => `<Resource><UID>${i + 1}</UID><ID>${i + 1}</ID><Name>${esc(o)}</Name><Type>1</Type><IsNull>0</IsNull></Resource>`).join("") : "";
 
     const xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Project xmlns="http://schemas.microsoft.com/project">
@@ -644,8 +666,8 @@
 <WeekStartDay>1</WeekStartDay>
 <NewTasksAreManual>0</NewTasksAreManual>
 <ExtendedAttributes>
-<ExtendedAttribute><FieldID>188743731</FieldID><FieldName>Text1</FieldName><Alias>Fase</Alias></ExtendedAttribute>
-${full ? "<ExtendedAttribute><FieldID>188743734</FieldID><FieldName>Text2</FieldName><Alias>Ruta crítica</Alias></ExtendedAttribute>" : ""}
+${m.fields ? "<ExtendedAttribute><FieldID>188743731</FieldID><FieldName>Text1</FieldName><Alias>Fase</Alias></ExtendedAttribute>" : ""}
+${m.fields ? "<ExtendedAttribute><FieldID>188743734</FieldID><FieldName>Text2</FieldName><Alias>Ruta crítica</Alias></ExtendedAttribute>" : ""}
 </ExtendedAttributes>
 <Calendars><Calendar><UID>1</UID><Name>Proyecto (7 días)</Name><IsBaseCalendar>1</IsBaseCalendar><WeekDays>${weekDays}</WeekDays></Calendar></Calendars>
 <Tasks>
@@ -655,7 +677,7 @@ ${tasks.join("\n")}
 <Assignments>${assignments.join("")}</Assignments>
 </Project>
 `;
-    const base = full ? "ms-project-detallado-migracion-aws" : "ms-project-wbs-gantt-migracion-aws";
+    const base = m.fileName || "ms-project-migracion-aws";
     // En claude.ai no se pueden descargar .xml: se entrega dentro de un .zip
     if (window.EMBEDDED_VIEW) return { name: `${base}.zip`, blob: zipStore([{ name: `${base}.xml`, data: new TextEncoder().encode(xml) }]) };
     return { name: `${base}.xml`, blob: new Blob([xml], { type: "application/xml" }) };

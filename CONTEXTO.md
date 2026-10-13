@@ -37,6 +37,7 @@ Este repo contiene una página web interactiva con la WBS del equipo y un diagra
 
 - **Exportación PDF**: se dibuja con jsPDF (vectorial, A3 apaisado) en vez de capturar pantalla, para que salga nítido y con los colores de cada fase. jsPDF va copiado en `js/vendor/` para que ande sin internet; la versión publicada lo carga de cdnjs.
 - **Exportación MS Project**: formato MSPDI (XML), con un calendario de 7 días laborables para respetar las duraciones en días corridos y restricción "No comenzar antes del" en cada paquete para conservar las fechas planificadas. El XML no admite colores de barras.
+- **Exportación personalizada**: un panel con opciones por sección/columna y un árbol de fases y paquetes para excluir lo que no se quiera. Las opciones viven en `exp` (app.js) y se guardan en localStorage; `export.js` recibe un objeto de opciones en vez de un modo fijo. El filtrado de paquetes se hace en app.js antes de llamar al exportador; la ruta crítica se sigue calculando con el proyecto completo.
 - En la versión publicada en claude.ai las descargas usan la capacidad `downloads`, que no permite `.xml`: ahí el archivo de MS Project se entrega dentro de un `.zip`.
 
 ## Pendientes / ideas
@@ -47,5 +48,6 @@ Este repo contiene una página web interactiva con la WBS del equipo y un diagra
 ## Bitácora
 | Fecha | Cambio | Rama / PR |
 |---|---|---|
+| 2026-10-13 | Panel de exportación personalizada: secciones, columnas, fases/paquetes, hoja A3/A4 y nombre de archivo. | `feature/exportacion-personalizada` |
 | 2026-10-13 | Exportar a PDF (WBS y Gantt / informe detallado) y a MS Project XML (simple / detallado). | `feature/exportar-pdf-msproject` |
 | 2026-10-13 | Versión inicial: WBS interactiva + Gantt (arrastre, ruta crítica, hitos, import/export JSON/CSV, impresión, tema oscuro). | `feature/wbs-gantt-inicial` |

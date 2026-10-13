@@ -627,12 +627,147 @@
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   }
 
-  async function runExport(kind, mode) {
+  /* ------------------------------------------------------------------ */
+  /* Panel de exportación personalizada (PDF / MS Project)              */
+  /* ------------------------------------------------------------------ */
+  const EXPORT_KEY = STORAGE_KEY + ":export";
+  const PDF_SECTIONS = [
+    ["summary", "Resumen del proyecto", "Indicadores, tablas y supuestos", [["kpis", "Indicadores"], ["phases", "Tabla de fases"], ["milestones", "Tabla de hitos"], ["critical", "Ruta crítica"], ["assumptions", "Supuestos del cronograma"]]],
+    ["wbs", "WBS", "Organigrama de fases y paquetes", [["dates", "Fechas y duración en cada paquete"], ["critical", "Resaltar paquetes críticos"]]],
+    ["gantt", "Diagrama de Gantt", "Barras por semana con el color de cada fase", [["colDates", "Columnas inicio y fin"], ["colDays", "Columna días"], ["colProgress", "Columna % de avance"], ["labels", "Nombre al lado de cada barra"], ["deps", "Flechas de dependencias"], ["critical", "Ruta crítica"], ["milestones", "Hitos"], ["today", "Línea de hoy"], ["legend", "Leyenda"]]],
+    ["dictionary", "Diccionario de la WBS", "Tabla con el detalle de cada paquete", [["dates", "Inicio y fin"], ["days", "Días"], ["weeks", "Semanas"], ["deps", "Predecesoras"], ["slack", "Holgura"], ["critical", "Crítica"], ["progress", "Avance"], ["owner", "Responsable"], ["notes", "Notas"]]],
+  ];
+  const MSP_OPTS = [["deps", "Dependencias entre paquetes"], ["progress", "% de avance"], ["resources", "Responsables como recursos"], ["notes", "Notas con la holgura de cada paquete"], ["milestones", "Hitos del Project Charter"], ["fields", "Campos Fase y Ruta crítica (para agrupar o colorear)"]];
+
+  function exportPreset(name) {
+    const all = v => Object.fromEntries(PDF_SECTIONS.map(([k, , , subs]) => [k, { on: v, ...Object.fromEntries(subs.map(([sk]) => [sk, v])) }]));
+    if (name === "full") return { pdf: all(true), msp: Object.fromEntries(MSP_OPTS.map(([k]) => [k, true])) };
+    if (name === "none") return { pdf: Object.fromEntries(Object.entries(all(true)).map(([k, v]) => [k, { ...v, on: false }])), msp: Object.fromEntries(MSP_OPTS.map(([k]) => [k, false])) };
+    // "simple": solo WBS y Gantt
+    const pdf = all(true);
+    pdf.summary.on = false; pdf.dictionary.on = false;
+    pdf.wbs = { on: true, dates: false, critical: false };
+    pdf.gantt = { on: true, colDates: false, colDays: true, colProgress: false, labels: true, deps: false, critical: false, milestones: true, today: false, legend: true };
+    return { pdf, msp: { deps: false, progress: false, resources: false, notes: false, milestones: true, fields: true } };
+  }
+
+  let exp = (() => {
+    const base = { format: "pdf", pageSize: "a3", fileName: "", exclude: [], ...exportPreset("simple") };
+    try {
+      const saved = JSON.parse(localStorage.getItem(EXPORT_KEY) || "null");
+      if (saved && saved.pdf && saved.msp) return { ...base, ...saved };
+    } catch (_) { /* ignorar */ }
+    return base;
+  })();
+  const saveExp = () => { try { localStorage.setItem(EXPORT_KEY, JSON.stringify(exp)); } catch (_) { /* ignorar */ } };
+
+  function openExport(format) {
+    if (format) exp.format = format;
+    renderExport();
+    $("#export-dialog").showModal();
+  }
+
+  function renderExport() {
+    const excl = new Set(exp.exclude);
+    $$("#exp-format button").forEach(b => b.classList.toggle("active", b.dataset.format === exp.format));
+    $("#exp-pagesize-wrap").hidden = exp.format !== "pdf";
+    $("#exp-pagesize").value = exp.pageSize;
+    $("#exp-filename").value = exp.fileName;
+    $("#exp-filename").placeholder = exp.format === "pdf" ? "cronograma-migracion-aws" : "ms-project-migracion-aws";
+    $("#exp-ext").textContent = exp.format === "pdf" ? ".pdf" : window.EMBEDDED_VIEW ? ".xml (en .zip)" : ".xml";
+
+    const check = (checked, onchange, label, attrs = {}) =>
+      el("label", { class: "chk" + (attrs.disabled ? " off" : "") }, el("input", { type: "checkbox", checked, disabled: attrs.disabled, onchange }), el("span", { text: label }));
+
+    // Qué incluir
+    const box = $("#exp-what");
+    if (exp.format === "pdf") {
+      box.replaceChildren(...PDF_SECTIONS.map(([key, label, hint, subs]) => {
+        const sec = exp.pdf[key];
+        return el("fieldset", { class: `exp-sec${sec.on ? "" : " collapsed"}` },
+          el("legend", {},
+            el("label", { class: "chk main" }, el("input", { type: "checkbox", checked: sec.on, onchange: e => { sec.on = e.target.checked; changed(); } }), el("span", { text: label })),
+            el("small", { text: hint })),
+          el("div", { class: "subs" }, subs.map(([sk, sl]) => check(sec[sk], e => { sec[sk] = e.target.checked; changed(); }, sl, { disabled: !sec.on }))));
+      }));
+    } else {
+      box.replaceChildren(el("fieldset", { class: "exp-sec" },
+        el("legend", {}, el("span", { class: "chk main", text: "Contenido del archivo de MS Project" }), el("small", { text: "Siempre incluye fases, paquetes, fechas y duraciones" })),
+        el("div", { class: "subs" }, MSP_OPTS.map(([k, l]) => check(exp.msp[k], e => { exp.msp[k] = e.target.checked; changed(); }, l))),
+        el("p", { class: "exp-note", text: "MS Project no guarda colores de barras en XML. Con el campo Fase podés colorear desde Formato > Estilos de barra o agrupar por fase." })));
+    }
+
+    // Fases y paquetes
+    const tree = $("#exp-tree");
+    tree.replaceChildren(...[...state.phases].sort((a, b) => codeCmp(a.code, b.code)).map(p => {
+      const ts = tasksOf(p.code);
+      const inCount = ts.filter(t => !excl.has(t.code)).length;
+      const pbox = el("input", { type: "checkbox", checked: inCount > 0, onchange: e => {
+        const set = new Set(exp.exclude);
+        for (const t of ts) e.target.checked ? set.delete(t.code) : set.add(t.code);
+        exp.exclude = [...set]; changed();
+      } });
+      pbox.indeterminate = inCount > 0 && inCount < ts.length;
+      const open = !!expTreeOpen[p.code];
+      return el("li", { class: `exp-phase${open ? " open" : ""}`, style: `--phase:${p.color}` },
+        el("div", { class: "exp-phase-row" },
+          el("button", { type: "button", class: "twisty", "aria-label": open ? "Contraer" : "Expandir", text: open ? "▾" : "▸", onclick: () => { expTreeOpen[p.code] = !open; renderExport(); } }),
+          el("label", { class: "chk" }, pbox, el("span", { class: "sw" }), el("span", { text: `${p.code}. ${p.name}` })),
+          el("span", { class: "count", text: `${inCount}/${ts.length}` })),
+        open ? el("ul", {}, ts.map(t => el("li", {}, check(!excl.has(t.code), e => {
+          const set = new Set(exp.exclude);
+          e.target.checked ? set.delete(t.code) : set.add(t.code);
+          exp.exclude = [...set]; changed();
+        }, `${t.code} ${t.name}`)))) : null);
+    }));
+
+    // Resumen al pie
+    const total = state.tasks.length, chosen = total - state.tasks.filter(t => excl.has(t.code)).length;
+    const parts = exp.format === "pdf"
+      ? PDF_SECTIONS.filter(([k]) => exp.pdf[k].on).map(([, l]) => l)
+      : ["MS Project", ...MSP_OPTS.filter(([k]) => exp.msp[k]).map(([, l]) => l.split(" (")[0].toLowerCase())];
+    $("#exp-summary").textContent = `${parts.length ? parts.join(" · ") : "Nada elegido"} — ${chosen} de ${total} paquetes${exp.format === "pdf" ? ` · hoja ${exp.pageSize.toUpperCase()}` : ""}`;
+    const nothing = !chosen || (exp.format === "pdf" && !PDF_SECTIONS.some(([k]) => exp.pdf[k].on));
+    $("#exp-go").disabled = nothing;
+  }
+  const expTreeOpen = {};
+  function changed() { saveExp(); renderExport(); }
+
+  $("#exp-format").addEventListener("click", e => { const b = e.target.closest("[data-format]"); if (b) { exp.format = b.dataset.format; changed(); } });
+  $("#exp-presets").addEventListener("click", e => {
+    const b = e.target.closest("[data-preset]");
+    if (!b) return;
+    const pr = exportPreset(b.dataset.preset);
+    if (exp.format === "pdf") exp.pdf = pr.pdf; else exp.msp = pr.msp;
+    changed();
+  });
+  $("#exp-all").addEventListener("click", () => { exp.exclude = []; changed(); });
+  $("#exp-none").addEventListener("click", () => { exp.exclude = state.tasks.map(t => t.code); changed(); });
+  $("#exp-expand").addEventListener("click", () => {
+    const anyClosed = state.phases.some(p => !expTreeOpen[p.code]);
+    state.phases.forEach(p => (expTreeOpen[p.code] = anyClosed));
+    renderExport();
+  });
+  $("#exp-pagesize").addEventListener("change", e => { exp.pageSize = e.target.value; changed(); });
+  $("#exp-filename").addEventListener("change", e => { exp.fileName = e.target.value.trim().replace(/\.(pdf|xml|zip)$/i, "").replace(/[\\/:*?"<>|]+/g, "-"); changed(); });
+  $("#exp-cancel").addEventListener("click", () => $("#export-dialog").close());
+  $("#exp-go").addEventListener("click", async () => {
+    $("#export-dialog").close();
+    await runExport();
+  });
+
+  async function runExport() {
     if (!window.Exporters) { toast("El módulo de exportación no cargó"); return; }
     toast("Generando archivo…");
     try {
-      const api = { state, analysis, fmt, isoDay, endOf, lastDay, weekOf, codeCmp, tasksOf, phaseByCode, dayToDate };
-      const file = kind === "pdf" ? await window.Exporters.pdf(api, mode) : window.Exporters.msproject(api, mode);
+      const excl = new Set(exp.exclude);
+      const keep = t => !excl.has(t.code);
+      const tasks = state.tasks.filter(keep);
+      const fstate = { ...state, tasks, phases: state.phases.filter(p => tasks.some(t => t.phase === p.code)) };
+      const api = { state: fstate, analysis, fmt, isoDay, endOf, lastDay, weekOf, codeCmp, tasksOf: code => tasksOf(code).filter(keep), phaseByCode, dayToDate };
+      const file = exp.format === "pdf"
+        ? await window.Exporters.pdf(api, { ...exp.pdf, pageSize: exp.pageSize, fileName: exp.fileName })
+        : window.Exporters.msproject(api, { ...exp.msp, fileName: exp.fileName });
       await download(file.name, file.blob);
     } catch (e) {
       console.error(e);
@@ -669,10 +804,8 @@
     "export-json": () => download("wbs-gantt-migracion-aws.json", JSON.stringify(state, null, 2), "application/json"),
     "import-json": () => $("#import-file").click(),
     "export-csv": exportCSV,
-    "pdf-simple": () => runExport("pdf", "simple"),
-    "pdf-full": () => runExport("pdf", "full"),
-    "msp-simple": () => runExport("msp", "simple"),
-    "msp-full": () => runExport("msp", "full"),
+    "export-pdf": () => openExport("pdf"),
+    "export-msp": () => openExport("msp"),
     "print": () => {
       document.body.classList.add(`print-${ui.view}`);
       window.print();
@@ -726,6 +859,7 @@
     toast(`Inicio del proyecto: ${fmt(0)}`);
   });
   $("#g-add-task").addEventListener("click", () => openTask(null));
+  $("#export-btn").addEventListener("click", () => openExport());
 
   const title = $("#project-name");
   title.addEventListener("dblclick", () => { title.contentEditable = "true"; title.focus(); });

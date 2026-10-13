@@ -289,3 +289,56 @@ dialog.ask input { width: 100%; border: 1px solid var(--border); border-radius: 
   .wbs-scroll, .gantt-scroll { overflow: visible; border: 0; }
   .g-left, .g-head { position: static; }
 }
+
+/* ============ Panel de exportación ============ */
+dialog.export { width: min(980px, calc(100vw - 32px)); max-height: calc(100vh - 48px); display: none; }
+dialog.export[open] { display: flex; flex-direction: column; }
+.exp-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 18px 20px 12px; border-bottom: 1px solid var(--border); }
+.exp-head h2 { margin: 0; font-size: 17px; }
+.exp-presets { display: flex; align-items: center; gap: 6px; margin-left: auto; flex-wrap: wrap; }
+.exp-presets span { color: var(--muted); font-size: 12px; }
+.exp-presets .btn { padding: 4px 10px; font-size: 13px; }
+.exp-body { display: grid; grid-template-columns: 1.1fr 1fr; gap: 20px; padding: 14px 20px; overflow: auto; min-height: 0; }
+.exp-body > section { min-width: 0; }
+.exp-body h3 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.exp-sec { border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px 10px; margin: 0 0 10px; }
+.exp-sec legend { display: flex; align-items: baseline; gap: 8px; padding: 0 4px; flex-wrap: wrap; }
+.exp-sec legend small { color: var(--muted); font-size: 11px; }
+.exp-sec .subs { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 2px 12px; }
+.exp-sec.collapsed { background: var(--surface-2); }
+.exp-sec.collapsed .subs { opacity: .55; }
+.chk { display: inline-flex; align-items: center; gap: 7px; cursor: pointer; font-size: 13px; color: var(--text); padding: 3px 0; }
+.chk.main { font-weight: 700; font-size: 14px; }
+.chk.off { color: var(--muted); cursor: default; }
+.chk input { accent-color: var(--accent); width: 15px; height: 15px; margin: 0; }
+.exp-note { color: var(--muted); font-size: 12px; margin: 4px 0 8px; }
+.exp-tree-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.exp-tree-head h3 { margin-right: auto; }
+.link { border: 0; background: none; color: var(--accent); cursor: pointer; padding: 0; font-size: 12px; }
+.link:hover { text-decoration: underline; }
+.exp-tree { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: 10px; max-height: 52vh; overflow: auto; }
+.exp-phase { border-bottom: 1px solid var(--grid); }
+.exp-phase:last-child { border-bottom: 0; }
+.exp-phase-row { display: flex; align-items: center; gap: 4px; padding: 4px 10px 4px 4px; }
+.exp-phase-row .chk { flex: 1; min-width: 0; font-weight: 600; }
+.exp-phase-row .chk span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.exp-phase-row .sw { width: 10px; height: 10px; border-radius: 3px; background: var(--phase); flex: none; }
+.exp-phase-row .count { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.twisty { border: 0; background: none; color: var(--muted); cursor: pointer; width: 22px; height: 22px; border-radius: 4px; }
+.twisty:hover { background: var(--surface-2); }
+.exp-phase ul { list-style: none; margin: 0; padding: 0 10px 6px 50px; }
+.exp-foot { border-top: 1px solid var(--border); padding: 12px 20px 16px; display: flex; flex-direction: column; gap: 8px; }
+.exp-file { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-end; }
+.exp-file label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+.exp-file select, .exp-file input { border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; background: var(--surface); }
+.fname { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); }
+.fname input { width: 240px; max-width: 60vw; }
+.exp-summary { margin: 0; font-size: 13px; }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+@media (max-width: 760px) {
+  .exp-body { grid-template-columns: 1fr; }
+  .exp-presets { margin-left: 0; }
+}
+dialog label.chk { flex-direction: row; align-items: center; gap: 7px; font-size: 13px; color: var(--text); }
+dialog label.chk.main { font-size: 14px; }
+dialog label.chk.off { color: var(--muted); }

@@ -21,17 +21,23 @@ Abrí `index.html` en el navegador (doble clic alcanza, no necesita servidor).
 - Se marcan en rojo punteado las dependencias que no se respetan.
 - Fecha de inicio del proyecto editable (todas las fechas se recalculan).
 
+### Exportar (botón azul o menú Archivo)
+Abre un panel para elegir qué sale en el archivo:
+- **Formato**: PDF con colores o MS Project (.xml).
+- **Partir de**: *WBS y Gantt* (lo básico), *Detallado* (todo) o *Vaciar*; después se ajusta a mano.
+- **Qué incluir (PDF)**: secciones Resumen, WBS, Gantt y Diccionario de la WBS, cada una con sus opciones (columnas, dependencias, ruta crítica, hitos, línea de hoy, leyenda, fechas en la WBS, etc.).
+- **Qué incluir (MS Project)**: dependencias, % de avance, responsables como recursos, notas con holgura, hitos y campos personalizados "Fase" (Texto1) y "Ruta crítica" (Texto2).
+- **Fases y paquetes**: se destilda cualquier fase o paquete para dejarlo afuera.
+- **Hoja** A3 o A4 apaisada y **nombre del archivo**.
+
+La selección queda guardada en el navegador para la próxima vez.
+
+El XML de MS Project se abre desde Project con *Archivo > Abrir* eligiendo "Formato XML". No guarda colores de barras: para colorear por fase usá *Formato > Estilos de barra* o agrupá por el campo "Fase".
+
 ### Menú Archivo
-- **PDF con colores** (hoja A3 apaisada, dibujado vectorial):
-  - *WBS y Gantt*: una hoja con la WBS y otra con el Gantt.
-  - *Informe detallado*: resumen (indicadores, fases, hitos, ruta crítica y supuestos), WBS con fechas, Gantt con ruta crítica, dependencias y línea de hoy, y diccionario de la WBS.
-- **MS Project (.xml)**: se abre desde Project con *Archivo > Abrir* eligiendo el tipo "Formato XML".
-  - *WBS y Gantt*: fases como tareas resumen, paquetes con fechas y duraciones, e hitos.
-  - *Detallado*: además predecesoras, % de avance, responsables como recursos, notas con la holgura y campos personalizados "Fase" (Texto1) y "Ruta crítica" (Texto2).
-  - El formato XML de Project no guarda colores de barras: para colorear por fase usá *Formato > Estilos de barra* o agrupá por el campo "Fase".
 - Exportar / importar JSON (para compartir el cronograma con el equipo).
 - Exportar CSV (abre en Excel; separador `;`).
-- Imprimir / guardar como PDF la vista actual.
+- Imprimir la vista actual.
 - Restaurar los datos originales.
 
 Los cambios se guardan automáticamente en el navegador (localStorage).
