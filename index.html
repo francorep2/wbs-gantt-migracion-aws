@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WBS y Gantt · Migración AWS</title>
+  <meta name="description" content="WBS interactiva y diagrama de Gantt del proyecto Migración a AWS - Mercado Hogar S.R.L. (Equipo 04, Dirección de Proyectos).">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <h1 id="project-name" title="Doble clic para editar">Migración a AWS - Mercado Hogar S.R.L.</h1>
+      <p class="subtitle">WBS y cronograma · Equipo 04 · Dirección de Proyectos</p>
+    </div>
+    <nav class="tabs" role="tablist">
+      <button class="tab active" data-view="wbs" role="tab">WBS</button>
+      <button class="tab" data-view="gantt" role="tab">Gantt</button>
+    </nav>
+    <div class="top-actions">
+      <button class="btn ghost" id="theme-toggle" title="Cambiar tema claro/oscuro" aria-label="Cambiar tema">☾</button>
+      <div class="menu">
+        <button class="btn" id="menu-btn">Archivo ▾</button>
+        <div class="menu-list" id="menu-list" hidden>
+          <button data-action="export-json">Exportar JSON</button>
+          <button data-action="import-json">Importar JSON…</button>
+          <button data-action="export-csv">Exportar CSV (Excel)</button>
+          <button data-action="print">Imprimir / PDF</button>
+          <hr>
+          <button data-action="reset" class="danger">Restaurar datos originales</button>
+        </div>
+      </div>
+      <input type="file" id="import-file" accept="application/json,.json" hidden>
+    </div>
+  </header>
+
+  <section class="summary" id="summary"></section>
+
+  <!-- ====================== VISTA WBS ====================== -->
+  <main id="view-wbs" class="view active">
+    <div class="toolbar">
+      <input type="search" id="wbs-search" placeholder="Buscar paquete de trabajo…" aria-label="Buscar">
+      <label class="check"><input type="checkbox" id="wbs-show-dates" checked> Mostrar fechas</label>
+      <button class="btn" id="wbs-expand">Expandir todo</button>
+      <button class="btn" id="wbs-collapse">Contraer todo</button>
+      <button class="btn primary" id="wbs-add-phase">+ Fase</button>
+      <span class="hint">Clic en una tarea para editarla · clic en una fase para contraerla</span>
+    </div>
+    <div class="wbs-scroll">
+      <div class="wbs" id="wbs"></div>
+    </div>
+  </main>
+
+  <!-- ====================== VISTA GANTT ====================== -->
+  <main id="view-gantt" class="view">
+    <div class="toolbar">
+      <div class="seg" id="zoom" role="group" aria-label="Escala">
+        <button data-zoom="day">Días</button>
+        <button data-zoom="week" class="active">Semanas</button>
+        <button data-zoom="month">Meses</button>
+      </div>
+      <label class="check"><input type="checkbox" id="g-critical" checked> Ruta crítica</label>
+      <label class="check"><input type="checkbox" id="g-deps" checked> Dependencias</label>
+      <label class="check"><input type="checkbox" id="g-milestones" checked> Hitos</label>
+      <label class="check" title="Al mover o alargar una tarea, empuja las tareas que dependen de ella"><input type="checkbox" id="g-cascade" checked> Mover sucesoras</label>
+      <label class="check">Inicio <input type="date" id="start-date"></label>
+      <button class="btn primary" id="g-add-task">+ Tarea</button>
+      <span class="hint">Arrastrá una barra para moverla y su borde derecho para cambiar la duración</span>
+    </div>
+    <div class="gantt-scroll" id="gantt-scroll">
+      <div class="gantt" id="gantt"></div>
+    </div>
+    <div class="legend">
+      <span><i class="lg tbar"></i> Tarea</span>
+      <span><i class="lg crit"></i> Ruta crítica</span>
+      <span><i class="lg loe"></i> Nivel de esfuerzo</span>
+      <span><i class="lg diamond"></i> Hito</span>
+      <span><i class="lg today"></i> Hoy</span>
+      <span><i class="lg warn"></i> Dependencia no respetada</span>
+    </div>
+  </main>
+
+  <!-- ====================== MODAL EDICIÓN ====================== -->
+  <dialog id="task-dialog">
+    <form method="dialog" id="task-form">
+      <h2 id="dlg-title">Editar tarea</h2>
+      <div class="grid2">
+        <label>Código <input name="code" required pattern="[0-9]+(\.[0-9]+)+"></label>
+        <label>Fase <select name="phase"></select></label>
+      </div>
+      <label>Nombre <input name="name" required></label>
+      <div class="grid3">
+        <label>Inicio <input type="date" name="startDate" required></label>
+        <label>Duración (días) <input type="number" name="duration" min="1" required></label>
+        <label>Fin <input type="date" name="endDate" readonly tabindex="-1"></label>
+      </div>
+      <div class="grid2">
+        <label>Avance (%) <input type="number" name="progress" min="0" max="100" step="5"></label>
+        <label>Responsable <input name="owner" placeholder="Ej.: PM, DBA, Arquitecto"></label>
+      </div>
+      <label>Predecesoras (FC) <input name="deps" placeholder="Ej.: 3.3, 3.4"></label>
+      <label class="check"><input type="checkbox" name="loe"> Nivel de esfuerzo (no entra en ruta crítica)</label>
+      <label>Notas <textarea name="notes" rows="2"></textarea></label>
+      <p class="form-error" id="form-error"></p>
+      <div class="dlg-actions">
+        <button type="button" class="btn danger" id="dlg-delete">Eliminar</button>
+        <span class="spacer"></span>
+        <button type="button" class="btn" id="dlg-cancel">Cancelar</button>
+        <button type="submit" class="btn primary">Guardar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="tooltip" id="tooltip" hidden></div>
+  <div class="toast" id="toast" hidden></div>
+
+  <script src="js/data.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
