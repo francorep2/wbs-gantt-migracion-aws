@@ -111,6 +111,18 @@
     </form>
   </dialog>
 
+  <dialog id="ask-dialog" class="ask">
+    <form method="dialog">
+      <p id="ask-msg"></p>
+      <input id="ask-input" aria-label="Texto">
+      <div class="dlg-actions">
+        <span class="spacer"></span>
+        <button type="button" class="btn" id="ask-cancel">Cancelar</button>
+        <button value="ok" class="btn primary" id="ask-ok">Aceptar</button>
+      </div>
+    </form>
+  </dialog>
+
   <div class="tooltip" id="tooltip" hidden></div>
   <div class="toast" id="toast" hidden></div>
 

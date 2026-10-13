@@ -49,7 +49,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .topbar {
   display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
   padding: 12px 20px; background: var(--surface); border-bottom: 1px solid var(--border);
-  position: sticky; top: 0; z-index: 30;
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 30;
 }
 .brand { flex: 1 1 280px; min-width: 0; }
 .brand h1 { font-size: 18px; margin: 0; cursor: text; }
@@ -254,6 +254,9 @@ dialog input[readonly] { background: var(--surface-2); }
 .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
 .dlg-actions { display: flex; gap: 8px; margin-top: 6px; }
 .spacer { flex: 1; }
+dialog.ask { width: min(420px, calc(100vw - 32px)); }
+dialog.ask p { margin: 0; font-size: 15px; }
+dialog.ask input { width: 100%; border: 1px solid var(--border); border-radius: 8px; padding: 7px 9px; background: var(--surface); }
 .form-error { color: var(--danger); margin: 0; min-height: 1em; font-size: 12px; }
 
 .tooltip {

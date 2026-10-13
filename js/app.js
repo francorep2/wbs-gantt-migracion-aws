@@ -236,19 +236,19 @@
     }
   }
 
-  function renamePhase(p) {
-    const name = prompt("Nombre de la fase:", p.name);
+  async function renamePhase(p) {
+    const name = await ask("Renombrar fase", { value: p.name, ok: "Guardar" });
     if (name && name.trim()) { p.name = name.trim(); save(); render(); }
   }
 
-  function deletePhase(p) {
-    if (!confirm(`¿Eliminar la fase ${p.code}. ${p.name}?`)) return;
+  async function deletePhase(p) {
+    if (!(await ask(`¿Eliminar la fase ${p.code}. ${p.name}?`, { ok: "Eliminar", danger: true }))) return;
     state.phases = state.phases.filter(x => x !== p);
     save(); render();
   }
 
-  function addPhase() {
-    const name = prompt("Nombre de la nueva fase:");
+  async function addPhase() {
+    const name = await ask("Nombre de la nueva fase", { value: "", ok: "Agregar" });
     if (!name || !name.trim()) return;
     const next = String(Math.max(0, ...state.phases.map(p => parseInt(p.code, 10) || 0)) + 1);
     const palette = ["#3b82f6", "#8b5cf6", "#06b6d4", "#f59e0b", "#10b981", "#ef4444", "#14b8a6", "#ec4899", "#64748b", "#84cc16"];
@@ -498,6 +498,31 @@
   }
 
   /* ------------------------------------------------------------------ */
+  /* Diálogo de confirmación / texto (reemplaza prompt y confirm)        */
+  /* ------------------------------------------------------------------ */
+  // Con `value` pide un texto y resuelve con él (o null); sin `value` confirma y resuelve true/false.
+  function ask(message, { value, ok = "Aceptar", danger = false } = {}) {
+    const d = $("#ask-dialog");
+    $("#ask-msg").textContent = message;
+    const input = $("#ask-input");
+    input.hidden = value === undefined;
+    input.value = value ?? "";
+    const okBtn = $("#ask-ok");
+    okBtn.textContent = ok;
+    okBtn.className = `btn ${danger ? "danger" : "primary"}`;
+    d.returnValue = "";
+    d.showModal();
+    (value === undefined ? okBtn : input).focus();
+    return new Promise(resolve => {
+      d.addEventListener("close", () => {
+        const accepted = d.returnValue === "ok";
+        resolve(value === undefined ? accepted : accepted ? input.value : null);
+      }, { once: true });
+    });
+  }
+  $("#ask-cancel").addEventListener("click", () => $("#ask-dialog").close("cancel"));
+
+  /* ------------------------------------------------------------------ */
   /* Diálogo de edición                                                  */
   /* ------------------------------------------------------------------ */
   const dlg = $("#task-dialog");
@@ -577,8 +602,8 @@
   });
 
   $("#dlg-cancel").addEventListener("click", () => dlg.close());
-  $("#dlg-delete").addEventListener("click", () => {
-    if (!editing || !confirm(`¿Eliminar ${editing}?`)) return;
+  $("#dlg-delete").addEventListener("click", async () => {
+    if (!editing || !(await ask(`¿Eliminar la tarea ${editing}?`, { ok: "Eliminar", danger: true }))) return;
     state.tasks = state.tasks.filter(t => t.code !== editing);
     for (const t of state.tasks) t.deps = t.deps.filter(d => d !== editing);
     save(); dlg.close(); render();
@@ -627,8 +652,8 @@
       window.print();
       document.body.classList.remove(`print-${ui.view}`);
     },
-    "reset": () => {
-      if (!confirm("Se perderán los cambios y se vuelve a la WBS original. ¿Continuar?")) return;
+    "reset": async () => {
+      if (!(await ask("Se perderán los cambios y se vuelve a la WBS original. ¿Continuar?", { ok: "Restaurar", danger: true }))) return;
       state = fromDefault(); save(); render(); toast("Datos originales restaurados");
     },
   };
@@ -704,6 +729,7 @@
   /* ------------------------------------------------------------------ */
   /* Inicio                                                              */
   /* ------------------------------------------------------------------ */
+  if (window.EMBEDDED_VIEW) $$('[data-action="export-json"], [data-action="export-csv"], [data-action="print"]').forEach(b => b.remove());
   try { applyTheme(localStorage.getItem(THEME_KEY)); } catch (_) { /* ignorar */ }
   state = load();
   let initialView = "wbs";

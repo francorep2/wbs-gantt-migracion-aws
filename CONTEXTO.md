@@ -31,6 +31,8 @@ Este repo contiene una página web interactiva con la WBS del equipo y un diagra
   | 9. Dirección de Proyectos | 1–26 | Transversal, marcada como "nivel de esfuerzo" (no entra en la ruta crítica) |
 
 - **Dependencias**: son una propuesta razonable (Fin-Comienzo) armada a partir de la lógica técnica; no venían en la WBS. Revisar con el equipo.
+- **Sin `prompt()`/`confirm()` nativos**: se usan diálogos propios para que funcione también embebido (vista previa publicada en claude.ai, donde esos diálogos están bloqueados).
+- **Vista previa online**: el repo es privado (GitHub Pages no aplica gratis), así que se publicó una versión de un solo archivo como Artifact de Claude: https://claude.ai/artifact/6buZvVwtLuF1NGsosveiEZ . Ahí no funcionan exportar e imprimir; esas opciones se ocultan con `window.EMBEDDED_VIEW`.
 - **Ruta crítica**: se calcula sobre las fechas planificadas (holgura total = fin tardío − fin planificado).
 
 ## Pendientes / ideas
