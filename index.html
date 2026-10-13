@@ -18,16 +18,14 @@
       <button class="tab" data-view="gantt" role="tab">Gantt</button>
     </nav>
     <div class="top-actions">
+      <button class="btn primary" id="export-btn">Exportar</button>
       <button class="btn ghost" id="theme-toggle" title="Cambiar tema claro/oscuro" aria-label="Cambiar tema">☾</button>
       <div class="menu">
         <button class="btn" id="menu-btn">Archivo ▾</button>
         <div class="menu-list" id="menu-list" hidden>
-          <span class="menu-label">PDF (con colores)</span>
-          <button data-action="pdf-simple">WBS y Gantt</button>
-          <button data-action="pdf-full">Informe detallado</button>
-          <span class="menu-label">MS Project (.xml)</span>
-          <button data-action="msp-simple">WBS y Gantt</button>
-          <button data-action="msp-full">Detallado (dependencias, avance, recursos)</button>
+          <span class="menu-label">Exportar</span>
+          <button data-action="export-pdf">PDF con colores…</button>
+          <button data-action="export-msp">MS Project (.xml)…</button>
           <hr>
           <button data-action="export-json">Exportar JSON</button>
           <button data-action="import-json">Importar JSON…</button>
@@ -116,6 +114,53 @@
         <button type="submit" class="btn primary">Guardar</button>
       </div>
     </form>
+  </dialog>
+
+  <!-- ====================== PANEL DE EXPORTACIÓN ====================== -->
+  <dialog id="export-dialog" class="export">
+    <div class="exp-head">
+      <h2>Exportar</h2>
+      <div class="seg" id="exp-format" role="group" aria-label="Formato">
+        <button type="button" data-format="pdf">PDF</button>
+        <button type="button" data-format="msp">MS Project</button>
+      </div>
+      <div class="exp-presets" id="exp-presets">
+        <span>Partir de:</span>
+        <button type="button" class="btn" data-preset="simple">WBS y Gantt</button>
+        <button type="button" class="btn" data-preset="full">Detallado</button>
+        <button type="button" class="btn" data-preset="none">Vaciar</button>
+      </div>
+    </div>
+    <div class="exp-body">
+      <section>
+        <h3>Qué incluir</h3>
+        <div id="exp-what"></div>
+      </section>
+      <section>
+        <div class="exp-tree-head">
+          <h3>Fases y paquetes</h3>
+          <button type="button" class="link" id="exp-all">Todos</button>
+          <button type="button" class="link" id="exp-none">Ninguno</button>
+          <button type="button" class="link" id="exp-expand">Abrir/cerrar</button>
+        </div>
+        <p class="exp-note">Destildá lo que no quieras en el archivo. Las fases sin paquetes elegidos no aparecen.</p>
+        <ul class="exp-tree" id="exp-tree"></ul>
+      </section>
+    </div>
+    <div class="exp-foot">
+      <div class="exp-file">
+        <label id="exp-pagesize-wrap">Hoja
+          <select id="exp-pagesize"><option value="a3">A3 apaisada</option><option value="a4">A4 apaisada</option></select>
+        </label>
+        <label>Nombre del archivo <span class="fname"><input id="exp-filename"><span id="exp-ext">.pdf</span></span></label>
+      </div>
+      <p class="exp-summary" id="exp-summary"></p>
+      <div class="dlg-actions">
+        <span class="spacer"></span>
+        <button type="button" class="btn" id="exp-cancel">Cancelar</button>
+        <button type="button" class="btn primary" id="exp-go">Exportar</button>
+      </div>
+    </div>
   </dialog>
 
   <dialog id="ask-dialog" class="ask">
