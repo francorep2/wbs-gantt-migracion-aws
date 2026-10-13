@@ -22,6 +22,13 @@
       <div class="menu">
         <button class="btn" id="menu-btn">Archivo ▾</button>
         <div class="menu-list" id="menu-list" hidden>
+          <span class="menu-label">PDF (con colores)</span>
+          <button data-action="pdf-simple">WBS y Gantt</button>
+          <button data-action="pdf-full">Informe detallado</button>
+          <span class="menu-label">MS Project (.xml)</span>
+          <button data-action="msp-simple">WBS y Gantt</button>
+          <button data-action="msp-full">Detallado (dependencias, avance, recursos)</button>
+          <hr>
           <button data-action="export-json">Exportar JSON</button>
           <button data-action="import-json">Importar JSON…</button>
           <button data-action="export-csv">Exportar CSV (Excel)</button>
@@ -127,6 +134,8 @@
   <div class="toast" id="toast" hidden></div>
 
   <script src="js/data.js"></script>
+  <script src="js/vendor/jspdf.umd.min.js"></script>
+  <script src="js/export.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

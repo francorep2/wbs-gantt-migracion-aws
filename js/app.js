@@ -612,10 +612,32 @@
   /* ------------------------------------------------------------------ */
   /* Archivo: exportar / importar / imprimir                             */
   /* ------------------------------------------------------------------ */
-  function download(name, content, type) {
-    const a = el("a", { href: URL.createObjectURL(new Blob([content], { type })), download: name });
+  // Guarda un archivo. Fuera de claude.ai usa un link de descarga; embebido usa la capacidad "downloads".
+  async function download(name, content, type) {
+    const blob = content instanceof Blob ? content : new Blob([content], { type });
+    if (window.EMBEDDED_VIEW) {
+      const dl = window.claude?.use ? await window.claude.use("downloads") : null;
+      if (!dl) { toast("Las descargas no están disponibles en esta vista"); return; }
+      try { await dl.save({ filename: name, data: blob }); toast(`Descargado: ${name}`); }
+      catch (e) { if (e?.code !== "declined") toast(`No se pudo descargar (${e?.code || "error"})`); }
+      return;
+    }
+    const a = el("a", { href: URL.createObjectURL(blob), download: name });
     document.body.append(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+
+  async function runExport(kind, mode) {
+    if (!window.Exporters) { toast("El módulo de exportación no cargó"); return; }
+    toast("Generando archivo…");
+    try {
+      const api = { state, analysis, fmt, isoDay, endOf, lastDay, weekOf, codeCmp, tasksOf, phaseByCode, dayToDate };
+      const file = kind === "pdf" ? await window.Exporters.pdf(api, mode) : window.Exporters.msproject(api, mode);
+      await download(file.name, file.blob);
+    } catch (e) {
+      console.error(e);
+      toast(`No se pudo generar el archivo: ${e.message}`);
+    }
   }
 
   function exportCSV() {
@@ -647,6 +669,10 @@
     "export-json": () => download("wbs-gantt-migracion-aws.json", JSON.stringify(state, null, 2), "application/json"),
     "import-json": () => $("#import-file").click(),
     "export-csv": exportCSV,
+    "pdf-simple": () => runExport("pdf", "simple"),
+    "pdf-full": () => runExport("pdf", "full"),
+    "msp-simple": () => runExport("msp", "simple"),
+    "msp-full": () => runExport("msp", "full"),
     "print": () => {
       document.body.classList.add(`print-${ui.view}`);
       window.print();
@@ -729,7 +755,7 @@
   /* ------------------------------------------------------------------ */
   /* Inicio                                                              */
   /* ------------------------------------------------------------------ */
-  if (window.EMBEDDED_VIEW) $$('[data-action="export-json"], [data-action="export-csv"], [data-action="print"]').forEach(b => b.remove());
+  if (window.EMBEDDED_VIEW) $$('[data-action="print"]').forEach(b => b.remove());
   try { applyTheme(localStorage.getItem(THEME_KEY)); } catch (_) { /* ignorar */ }
   state = load();
   let initialView = "wbs";
