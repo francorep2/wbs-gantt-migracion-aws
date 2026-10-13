@@ -35,6 +35,10 @@ Este repo contiene una página web interactiva con la WBS del equipo y un diagra
 - **Vista previa online**: el repo es privado (GitHub Pages no aplica gratis), así que se publicó una versión de un solo archivo como Artifact de Claude: https://claude.ai/artifact/6buZvVwtLuF1NGsosveiEZ . Ahí no funcionan exportar e imprimir; esas opciones se ocultan con `window.EMBEDDED_VIEW`.
 - **Ruta crítica**: se calcula sobre las fechas planificadas (holgura total = fin tardío − fin planificado).
 
+- **Exportación PDF**: se dibuja con jsPDF (vectorial, A3 apaisado) en vez de capturar pantalla, para que salga nítido y con los colores de cada fase. jsPDF va copiado en `js/vendor/` para que ande sin internet; la versión publicada lo carga de cdnjs.
+- **Exportación MS Project**: formato MSPDI (XML), con un calendario de 7 días laborables para respetar las duraciones en días corridos y restricción "No comenzar antes del" en cada paquete para conservar las fechas planificadas. El XML no admite colores de barras.
+- En la versión publicada en claude.ai las descargas usan la capacidad `downloads`, que no permite `.xml`: ahí el archivo de MS Project se entrega dentro de un `.zip`.
+
 ## Pendientes / ideas
 - Validar con el equipo duraciones y dependencias de detalle.
 - Cargar responsables (matriz RACI / recursos de la U07) y avance real.
@@ -43,4 +47,5 @@ Este repo contiene una página web interactiva con la WBS del equipo y un diagra
 ## Bitácora
 | Fecha | Cambio | Rama / PR |
 |---|---|---|
+| 2026-10-13 | Exportar a PDF (WBS y Gantt / informe detallado) y a MS Project XML (simple / detallado). | `feature/exportar-pdf-msproject` |
 | 2026-10-13 | Versión inicial: WBS interactiva + Gantt (arrastre, ruta crítica, hitos, import/export JSON/CSV, impresión, tema oscuro). | `feature/wbs-gantt-inicial` |

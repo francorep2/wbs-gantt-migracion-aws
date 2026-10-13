@@ -22,6 +22,13 @@ Abrí `index.html` en el navegador (doble clic alcanza, no necesita servidor).
 - Fecha de inicio del proyecto editable (todas las fechas se recalculan).
 
 ### Menú Archivo
+- **PDF con colores** (hoja A3 apaisada, dibujado vectorial):
+  - *WBS y Gantt*: una hoja con la WBS y otra con el Gantt.
+  - *Informe detallado*: resumen (indicadores, fases, hitos, ruta crítica y supuestos), WBS con fechas, Gantt con ruta crítica, dependencias y línea de hoy, y diccionario de la WBS.
+- **MS Project (.xml)**: se abre desde Project con *Archivo > Abrir* eligiendo el tipo "Formato XML".
+  - *WBS y Gantt*: fases como tareas resumen, paquetes con fechas y duraciones, e hitos.
+  - *Detallado*: además predecesoras, % de avance, responsables como recursos, notas con la holgura y campos personalizados "Fase" (Texto1) y "Ruta crítica" (Texto2).
+  - El formato XML de Project no guarda colores de barras: para colorear por fase usá *Formato > Estilos de barra* o agrupá por el campo "Fase".
 - Exportar / importar JSON (para compartir el cronograma con el equipo).
 - Exportar CSV (abre en Excel; separador `;`).
 - Imprimir / guardar como PDF la vista actual.
@@ -35,6 +42,8 @@ Los cambios se guardan automáticamente en el navegador (localStorage).
 index.html        Página
 css/styles.css    Estilos (tema claro/oscuro, responsive, impresión)
 js/data.js        Datos iniciales: WBS, duraciones, dependencias e hitos
+js/export.js      Exportación a PDF (jsPDF) y MS Project (XML)
+js/vendor/        jsPDF 2.5.1 (para que funcione sin internet)
 js/app.js         Lógica: render WBS, Gantt, arrastre, ruta crítica, import/export
 CONTEXTO.md       Contexto, decisiones y bitácora del proyecto
 ```

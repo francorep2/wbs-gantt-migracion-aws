@@ -80,6 +80,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .menu-list button { border: 0; background: none; text-align: left; padding: 8px 10px; border-radius: 6px; cursor: pointer; }
 .menu-list button:hover { background: var(--surface-2); }
 .menu-list .danger { color: var(--danger); }
+.menu-list .menu-label { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); padding: 6px 10px 2px; }
 .menu-list hr { border: 0; border-top: 1px solid var(--border); margin: 4px 0; }
 
 /* ============ Resumen ============ */
