@@ -279,7 +279,8 @@
         doc.text(`S${api.weekOf(w)}`, X(w) + (7 * px) / 2, top + headH - 1.6, { align: "center" });
       }
 
-      // Grilla vertical semanal
+      // Feriados (calendario laboral) y grilla vertical semanal
+      for (let d = from; d < to; d++) if (api.holidayName?.(d)) doc.setFillColor(...tint(TODAY, 0.82)).rect(X(d), top + headH, Math.max(px, 0.6), yEnd - top - headH, "F");
       for (let w = from; w <= to; w += 7) {
         doc.setDrawColor(...GRID).setLineWidth(0.2).line(X(w), top + headH / 2, X(w), yEnd);
       }
@@ -322,7 +323,10 @@
           drawCells(doc, cols, vals, M + 1, textY, fs, false, INK, 3);
           doc.setDrawColor(...GRID).setLineWidth(0.15).line(M, y + rowH, tx0 - 1, y + rowH);
           const bh = rowH * 0.62, bx = X(t.start), bw = Math.max(t.duration * px, 0.8);
-          if (t.loe) {
+          if (t.buffer) {
+            doc.setFillColor(...tint(MUTED, 0.8)).rect(bx, mid - bh / 2, bw, bh, "F");
+            doc.setDrawColor(...MUTED).setLineWidth(0.25).setLineDashPattern([0.8, 0.6], 0).rect(bx, mid - bh / 2, bw, bh, "S").setLineDashPattern([], 0);
+          } else if (t.loe) {
             doc.setFillColor(...tint(rgb, 0.75)).rect(bx, mid - bh / 2, bw, bh, "F");
             doc.setDrawColor(...tint(rgb, 0.3)).setLineWidth(0.2);
             for (let hx = bx; hx < bx + bw; hx += 2.2) doc.line(hx, mid + bh / 2, Math.min(hx + bh, bx + bw), mid - bh / 2);
@@ -331,7 +335,7 @@
             if (t.progress) doc.setFillColor(...rgb).rect(bx, mid - bh / 2, bw * t.progress / 100, bh, "F");
           }
           const critical = g.critical && inf.critical;
-          doc.setDrawColor(...(critical ? CRIT : rgb)).setLineWidth(critical ? 0.5 : 0.25).rect(bx, mid - bh / 2, bw, bh, "S");
+          if (!t.buffer) doc.setDrawColor(...(critical ? CRIT : rgb)).setLineWidth(critical ? 0.5 : 0.25).rect(bx, mid - bh / 2, bw, bh, "S");
           if (g.labels) {
             doc.setFont("helvetica", "normal").setFontSize(fs - 1).setTextColor(...MUTED);
             const label = t.name;
@@ -390,6 +394,9 @@
       if (!g.legend) return;
       const legend = phases.map(p => { const rgb = hexToRgb(p.color); return [(x, yy) => doc.setFillColor(...rgb).rect(x, yy, 6, 3, "F"), `${p.code}. ${p.name}`]; });
       if (g.milestones) legend.push([(x, yy) => diamond(doc, x + 3, yy + 1.5, 1.6), "Hito"]);
+      if (state.tasks.some(t => t.buffer)) legend.push([(x, yy) => doc.setFillColor(...tint(MUTED, 0.8)).rect(x, yy, 6, 3, "F"), "Reserva de contingencia"]);
+      { let hasHoliday = false; for (let d = from; d < to && !hasHoliday; d++) hasHoliday = !!api.holidayName?.(d);
+        if (hasHoliday) legend.push([(x, yy) => doc.setFillColor(...tint(TODAY, 0.7)).rect(x + 2, yy - 0.5, 2, 4, "F"), "Feriado"]); }
       if (state.tasks.some(t => t.loe)) legend.push([(x, yy) => doc.setFillColor(200, 200, 210).rect(x, yy + 0.5, 6, 2, "F"), "Nivel de esfuerzo (rayado)"]);
       if (g.critical) legend.push([(x, yy) => doc.setDrawColor(...CRIT).setLineWidth(0.5).rect(x, yy, 6, 3, "S"), "Ruta crítica"]);
       if (g.today) legend.push([(x, yy) => doc.setDrawColor(...TODAY).setLineWidth(0.6).line(x + 3, yy - 0.5, x + 3, yy + 3.5), "Hoy"]);
@@ -541,6 +548,7 @@
     const cols = [["Cód.", 12, "l", "code"], ["Paquete de trabajo", 70, "l", "name"]];
     if (dc.dates) cols.push(["Inicio", 17, "l", "start"], ["Fin", 17, "l", "end"]);
     if (dc.days) cols.push(["Días", 10, "r", "days"]);
+    if (dc.workdays) cols.push(["Hábiles", 13, "r", "wd"]);
     if (dc.weeks) cols.push(["Semanas", 16, "r", "weeks"]);
     if (dc.deps) cols.push(["Predecesoras", 34, "l", "deps"]);
     if (dc.slack) cols.push(["Holgura", 14, "r", "slack"]);
@@ -571,7 +579,7 @@
         const notes = dc.notes ? doc.splitTextToSize(t.notes || "", notesW - 2) : [];
         const h = Math.max(5.6, notes.length * 3.2 + 2.4);
         if (y + h > PH - 16) { doc.addPage(); y = start(); }
-        const v = { code: t.code, name: t.name, start: api.fmt(t.start), end: api.fmt(api.lastDay(t)), days: t.duration,
+        const v = { code: t.code, name: t.name, start: api.fmt(t.start), end: api.fmt(api.lastDay(t)), days: t.duration, wd: api.workDaysOf ? api.workDaysOf(t) : "",
           weeks: `${api.weekOf(t.start)}-${api.weekOf(api.lastDay(t))}`, deps: t.deps.join(", ") || "-", slack: t.loe ? "n/a" : inf.slack,
           crit: t.loe ? "NE" : inf.critical ? "" : "No", pct: `${t.progress || 0}%`, owner: t.owner || "-" };
         drawCells(doc, cols, cols.map(c => v[c[3]]), M + 1, y + 3.9, fs, false, INK);
@@ -798,7 +806,7 @@ ${tasks.join("\n")}
           const t = r.t, rgb = hexToRgb(r.p.color), isCrit = o.critical && crit(t.code);
           rowCells([t.code, t.name, api.fmt(t.start), api.fmt(api.lastDay(t)), String(t.duration)], false, "#1c2230");
           cells.push({ id: `B${t.code}`, x: X(t.start), y: mid - 8, w: Math.max(t.duration * DX, 4), h: 16, value: "",
-            style: `rounded=0;html=1;fillColor=${hex(tint(rgb, t.loe ? 0.75 : 0.55))};strokeColor=${isCrit ? "#dc2626" : r.p.color};${isCrit ? "strokeWidth=2;" : ""}${t.loe ? `fillStyle=hatch;gradientColor=none;` : ""}` });
+            style: `rounded=0;html=1;fillColor=${hex(tint(rgb, t.loe ? 0.75 : 0.55))};strokeColor=${isCrit ? "#dc2626" : r.p.color};${isCrit ? "strokeWidth=2;" : ""}${t.loe ? `fillStyle=hatch;gradientColor=none;` : ""}${t.buffer ? "fillColor=#e5e7eb;strokeColor=#6b7385;dashed=1;" : ""}` });
           cells.push({ id: `L${t.code}`, x: X(api.endOf(t)) + 4, y, w: 260, h: RH, style: text("fontSize=10;fontColor=#6b7385;"), value: html(t.name) });
         } else if (r.p) {
           const ts = api.tasksOf(r.p.code), rgb = hexToRgb(r.p.color);

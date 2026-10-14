@@ -34,7 +34,8 @@ Si el puerto 8000 está ocupado, usá otro (por ejemplo `8080`) y abrí esa dire
 ## Cómo usarlo
 
 ### Vista WBS
-- Organigrama con las 9 fases y sus 67 paquetes de trabajo, cada uno con su responsable (rol) y la descripción del entregable.
+- Organigrama con las 9 fases y sus 68 paquetes de trabajo (incluye la reserva de contingencia 4.12), cada uno con su responsable (rol) y la descripción del entregable.
+- Calendario laboral: lunes a viernes sin feriados nacionales. Los feriados se marcan en el Gantt y cada tarea muestra sus días hábiles (tooltip, CSV y diccionario del PDF).
 - Clic en una fase: contraer/expandir. Doble clic: renombrar.
 - Clic en un paquete: editar nombre, fechas, duración, avance, responsable, predecesoras y notas.
 - `+ paquete` agrega una tarea a la fase; `+ Fase` agrega una fase nueva.
