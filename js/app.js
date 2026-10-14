@@ -42,6 +42,7 @@
       tasks: d.phases.flatMap(p => p.tasks.map(t => ({
         code: t.code, phase: p.code, name: t.name, start: t.start, duration: t.duration,
         deps: t.deps || [], progress: t.progress || 0, owner: t.owner || "", notes: t.notes || "", loe: !!t.loe, buffer: !!t.buffer,
+        effort: { ...(d.effort?.[t.code] || {}) },
       }))),
       milestones: d.milestones,
     };
@@ -69,6 +70,9 @@
       }
       s.tasks.push(def.find(x => x.code === "4.12"));
     }
+    // Esfuerzo por rol (14/10): se completa desde los datos de fábrica en los paquetes que no lo tienen
+    const effort = window.DEFAULT_PROJECT.effort || {};
+    for (const t of s.tasks) if (!t.effort) t.effort = { ...(effort[t.code] || {}) };
     return s;
   }
 
@@ -105,6 +109,11 @@
   const holidayName = d => HOLIDAYS.get(isoDay(d));
   const isWorkDay = d => CAL.workDays.includes(dayToDate(d).getUTCDay()) && !holidayName(d);
   const workDaysOf = t => { let n = 0; for (let d = t.start; d < endOf(t); d++) if (isWorkDay(d)) n++; return n; };
+
+  // Esfuerzo estimado (horas por rol) y roles con su tarifa
+  const ROLES = window.DEFAULT_PROJECT.roles || [];
+  const effortOf = t => Object.values(t.effort || {}).reduce((a, h) => a + h, 0);
+  const effortText = t => ROLES.filter(r => t.effort?.[r.id]).map(r => `${r.id} ${t.effort[r.id]}`).join(" · ");
 
   const codeCmp = (a, b) => {
     const pa = a.split(".").map(Number), pb = b.split(".").map(Number);
@@ -509,6 +518,7 @@
     const lines = [
       `${fmt(t.start)} → ${fmt(lastDay(t))} · ${t.duration} días corridos, ${workDaysOf(t)} hábiles (sem ${weekOf(t.start)}–${weekOf(lastDay(t))})`,
       t.buffer ? "Reserva de contingencia de cronograma" : null,
+      effortOf(t) ? `Esfuerzo: ${effortOf(t)} h (${effortText(t)})` : null,
       `Avance: ${t.progress || 0}%`,
       t.deps.length ? `Predecesoras: ${t.deps.join(", ")}` : null,
       t.loe ? "Nivel de esfuerzo" : inf.slack != null ? `Holgura: ${inf.slack} días${inf.critical ? " · CRÍTICA" : ""}` : null,
@@ -675,10 +685,11 @@
     ["summary", "Resumen del proyecto", "Indicadores, tablas y supuestos", [["kpis", "Indicadores"], ["phases", "Tabla de fases"], ["milestones", "Tabla de hitos"], ["critical", "Ruta crítica"], ["assumptions", "Supuestos del cronograma"]]],
     ["wbs", "WBS", "Organigrama de fases y paquetes", [["dates", "Fechas y duración en cada paquete"], ["critical", "Resaltar paquetes críticos"]]],
     ["gantt", "Diagrama de Gantt", "Barras por semana con el color de cada fase", [["colDates", "Columnas inicio y fin"], ["colDays", "Columna días"], ["colProgress", "Columna % de avance"], ["labels", "Nombre al lado de cada barra"], ["deps", "Flechas de dependencias"], ["critical", "Ruta crítica"], ["milestones", "Hitos"], ["today", "Línea de hoy"], ["legend", "Leyenda"]]],
-    ["dictionary", "Diccionario de la WBS", "Tabla con el detalle de cada paquete", [["dates", "Inicio y fin"], ["days", "Días"], ["workdays", "Días hábiles"], ["weeks", "Semanas"], ["deps", "Predecesoras"], ["slack", "Holgura"], ["critical", "Crítica"], ["progress", "Avance"], ["owner", "Responsable"], ["notes", "Notas"]]],
+    ["effort", "Esfuerzo y costos", "Horas por paquete y rol, en hojas aparte", [["byRole", "Resumen por rol (horas y costo)"], ["byPhase", "Horas por fase"], ["detail", "Detalle por paquete"], ["client", "Incluir roles de Mercado Hogar"]]],
+    ["dictionary", "Diccionario de la WBS", "Tabla con el detalle de cada paquete", [["dates", "Inicio y fin"], ["days", "Días"], ["workdays", "Días hábiles"], ["effort", "Esfuerzo (h)"], ["weeks", "Semanas"], ["deps", "Predecesoras"], ["slack", "Holgura"], ["critical", "Crítica"], ["progress", "Avance"], ["owner", "Responsable"], ["notes", "Notas"]]],
   ];
   const DIO_OPTS = [["wbs", "Hoja WBS (organigrama)"], ["wbsDates", "Fechas y duración en la WBS"], ["gantt", "Hoja Gantt"], ["deps", "Dependencias como conectores"], ["critical", "Ruta crítica en rojo"], ["milestones", "Hitos del Project Charter"]];
-  const MSP_OPTS = [["deps", "Dependencias entre paquetes"], ["progress", "% de avance"], ["resources", "Responsables como recursos"], ["notes", "Notas con la holgura de cada paquete"], ["milestones", "Hitos del Project Charter"], ["fields", "Campos Fase y Ruta crítica (para agrupar o colorear)"]];
+  const MSP_OPTS = [["deps", "Dependencias entre paquetes"], ["progress", "% de avance"], ["resources", "Roles como recursos, con las horas estimadas"], ["notes", "Notas con la holgura de cada paquete"], ["milestones", "Hitos del Project Charter"], ["fields", "Campos Fase y Ruta crítica (para agrupar o colorear)"]];
 
   function exportPreset(name) {
     const all = v => Object.fromEntries(PDF_SECTIONS.map(([k, , , subs]) => [k, { on: v, ...Object.fromEntries(subs.map(([sk]) => [sk, v])) }]));
@@ -687,7 +698,7 @@
     if (name === "none") return { pdf: Object.fromEntries(Object.entries(all(true)).map(([k, v]) => [k, { ...v, on: false }])), msp: flags(MSP_OPTS, false), dio: flags(DIO_OPTS, false) };
     // "simple": solo WBS y Gantt
     const pdf = all(true);
-    pdf.summary.on = false; pdf.dictionary.on = false;
+    pdf.summary.on = false; pdf.dictionary.on = false; pdf.effort.on = false;
     pdf.wbs = { on: true, dates: false, critical: false };
     pdf.gantt = { on: true, colDates: false, colDays: true, colProgress: false, labels: true, deps: false, critical: false, milestones: true, today: false, legend: true };
     return { pdf, msp: { deps: false, progress: false, resources: false, notes: false, milestones: true, fields: true },
@@ -698,7 +709,7 @@
     const base = { format: "pdf", pageSize: "a3", fileName: "", exclude: [], ...exportPreset("simple") };
     try {
       const saved = JSON.parse(localStorage.getItem(EXPORT_KEY) || "null");
-      if (saved && saved.pdf && saved.msp) return { ...base, ...saved, dio: { ...base.dio, ...saved.dio } };
+      if (saved && saved.pdf && saved.msp) return { ...base, ...saved, pdf: { ...base.pdf, ...saved.pdf }, dio: { ...base.dio, ...saved.dio } };
     } catch (_) { /* ignorar */ }
     return base;
   })();
@@ -814,7 +825,7 @@
       const keep = t => !excl.has(t.code);
       const tasks = state.tasks.filter(keep);
       const fstate = { ...state, tasks, phases: state.phases.filter(p => tasks.some(t => t.phase === p.code)) };
-      const api = { state: fstate, analysis, fmt, isoDay, endOf, lastDay, weekOf, codeCmp, tasksOf: code => tasksOf(code).filter(keep), phaseByCode, dayToDate, workDaysOf, holidayName };
+      const api = { state: fstate, analysis, fmt, isoDay, endOf, lastDay, weekOf, codeCmp, tasksOf: code => tasksOf(code).filter(keep), phaseByCode, dayToDate, workDaysOf, holidayName, roles: ROLES, effortOf };
       const file = exp.format === "pdf"
         ? await window.Exporters.pdf(api, { ...exp.pdf, pageSize: exp.pageSize, fileName: exp.fileName })
         : exp.format === "dio"
@@ -829,10 +840,10 @@
 
   function exportCSV() {
     const esc = v => `"${String(v ?? "").replace(/"/g, '""')}"`;
-    const header = ["Código", "Fase", "Tarea", "Inicio", "Fin", "Duración (días)", "Días hábiles", "Semana inicio", "Semana fin", "Avance %", "Predecesoras", "Responsable", "Crítica", "Holgura (días)", "Notas"];
+    const header = ["Código", "Fase", "Tarea", "Inicio", "Fin", "Duración (días)", "Días hábiles", "Esfuerzo (h)", "Esfuerzo por rol", "Semana inicio", "Semana fin", "Avance %", "Predecesoras", "Responsable", "Crítica", "Holgura (días)", "Notas"];
     const lines = [...state.tasks].sort((a, b) => codeCmp(a.code, b.code)).map(t => {
       const inf = analysis.info.get(t.code);
-      return [t.code, phaseByCode(t.phase)?.name, t.name, fmt(t.start), fmt(lastDay(t)), t.duration, workDaysOf(t), weekOf(t.start), weekOf(lastDay(t)),
+      return [t.code, phaseByCode(t.phase)?.name, t.name, fmt(t.start), fmt(lastDay(t)), t.duration, workDaysOf(t), effortOf(t), effortText(t), weekOf(t.start), weekOf(lastDay(t)),
         t.progress || 0, t.deps.join(", "), t.owner, inf.critical ? "Sí" : "No", inf.slack ?? "", t.notes].map(esc).join(";");
     });
     download("cronograma-migracion-aws.csv", "﻿" + [header.map(esc).join(";"), ...lines].join("\r\n"), "text/csv;charset=utf-8");
