@@ -35,6 +35,7 @@ Este repo contiene una página web interactiva con la WBS del equipo y un diagra
 - **Sin `prompt()`/`confirm()` nativos**: se usan diálogos propios para que funcione también embebido (vista previa publicada en claude.ai, donde esos diálogos están bloqueados).
 - **Vista previa online**: el repo es privado (GitHub Pages no aplica gratis), así que se publicó una versión de un solo archivo como Artifact de Claude: https://claude.ai/artifact/6buZvVwtLuF1NGsosveiEZ . Ahí no funcionan exportar e imprimir; esas opciones se ocultan con `window.EMBEDDED_VIEW`.
 - **Ruta crítica**: se calcula sobre las fechas planificadas (holgura total = fin tardío − fin planificado).
+- **Esfuerzo**: reparto bottom-up de las horas del Charter v1.2 por rol según participación × días hábiles de cada paquete, nivelado a 8 h por día y persona (ningún rol pasa de 40 h por semana). Suma 3.800 h y USD 173.000. Las horas del cliente (988 h) son costo de oportunidad.
 - **Responsables**: `owner` usa los 11 perfiles del Anexo I (sección 8). Las notas de cada paquete describen el entregable y alimentan el diccionario de la WBS.
 - **`STORAGE_KEY` v2**: al cambiar la WBS se subió la versión para que el navegador cargue los datos nuevos (los cambios guardados con la v1 no se migran).
 
@@ -56,6 +57,7 @@ Este repo contiene una página web interactiva con la WBS del equipo y un diagra
 ## Bitácora
 | Fecha | Cambio | Rama / PR |
 |---|---|---|
+| 2026-10-14 | Esfuerzo por paquete y rol (`effort` y `roles` en `data.js`): tooltip, CSV, columna en el diccionario, sección "Esfuerzo y costos" del PDF y asignaciones con trabajo y tarifa en MS Project. `migrate()` lo agrega a los datos guardados. | `feature/esfuerzo` |
 | 2026-10-14 | Calendario laboral con feriados (marcados en el Gantt y en el PDF, días hábiles por paquete) y reserva de contingencia 4.12 con fast tracking de 4.9 y 4.10. `migrate()` aplica el cambio a los datos ya guardados. | `feature/calendario-reserva` |
 | 2026-10-14 | PDF: los símbolos fuera de WinAnsi (como ↔) se reemplazan por texto (`<->`) en vez de salir rotos, y la leyenda del Gantt muestra todas las fases (se corta en filas). Los hitos H5 y H6 usan los nombres del Project Charter v1.2. | `fix/export-pdf-charter` |
 | 2026-10-13 | Limpieza de UX/UI (resumen en una línea, ruta crítica sutil, dependencias apagadas por defecto, hitos desplegables, panel de exportar más simple) y red del Gantt cerrada (8.2/8.4 → 5.7, 7.1–7.4 → 9.7). | `feature/ux-limpieza` |

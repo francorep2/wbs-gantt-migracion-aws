@@ -35,6 +35,7 @@ Si el puerto 8000 está ocupado, usá otro (por ejemplo `8080`) y abrí esa dire
 
 ### Vista WBS
 - Organigrama con las 9 fases y sus 68 paquetes de trabajo (incluye la reserva de contingencia 4.12), cada uno con su responsable (rol) y la descripción del entregable.
+- Esfuerzo estimado (U05): horas por paquete y rol (3.800 h de consultoría, USD 173.000 con las tarifas del Anexo I), en el tooltip, el CSV, el diccionario y la sección "Esfuerzo y costos" del PDF. En MS Project los roles salen como recursos con su tarifa y las horas como trabajo asignado.
 - Calendario laboral: lunes a viernes sin feriados nacionales. Los feriados se marcan en el Gantt y cada tarea muestra sus días hábiles (tooltip, CSV y diccionario del PDF).
 - Clic en una fase: contraer/expandir. Doble clic: renombrar.
 - Clic en un paquete: editar nombre, fechas, duración, avance, responsable, predecesoras y notas.

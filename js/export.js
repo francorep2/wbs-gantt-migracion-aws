@@ -38,7 +38,7 @@
     const pageSize = sizes[o.pageSize] ? o.pageSize : "a3";
     const [PW, PH] = sizes[pageSize];
     const M = 12;
-    const sections = [[o.summary, drawSummaryPage], [o.wbs, drawWBS], [o.gantt, drawGantt], [o.dictionary, drawDictionary]].filter(([sec]) => sec?.on);
+    const sections = [[o.summary, drawSummaryPage], [o.wbs, drawWBS], [o.gantt, drawGantt], [o.effort, drawEffort], [o.dictionary, drawDictionary]].filter(([sec]) => sec?.on);
     if (!sections.length) throw new Error("no elegiste ninguna sección para el PDF");
     if (!state.tasks.length) throw new Error("no quedó ningún paquete seleccionado");
 
@@ -540,6 +540,87 @@
     return y + 6;
   }
 
+  /* --- Esfuerzo y costos (horas por paquete y rol) --- */
+  function drawEffort(ctx) {
+    const { doc, api, o, PW, PH, M } = ctx;
+    const ef = o.effort, W = PW - 2 * M;
+    const roles = (api.roles || []).filter(r => ef.client || r.team === "Consultoría");
+    if (!roles.length) return;
+    const fmtN = v => v ? String(v).replace(/\B(?=(\d{3})+(?!\d))/g, ".") : "";
+    const tasks = sortedPhases(api).flatMap(p => api.tasksOf(p.code));
+    const h = (t, r) => (t.effort || {})[r.id] || 0;
+    const totRole = r => tasks.reduce((a, t) => a + h(t, r), 0);
+    const sub = "Estimación bottom-up calibrada con las horas del Project Charter · nivelada a 8 h por día hábil y persona";
+    let y = pageHeader(ctx, "Esfuerzo y costos", sub);
+    const newPage = () => { doc.addPage(); y = pageHeader(ctx, "Esfuerzo y costos", sub); };
+    const fs = 7.5, rowH = 5.4;
+
+    if (ef.byRole) {
+      doc.setFont("helvetica", "bold").setFontSize(11).setTextColor(...INK).text("Resumen por rol", M, y); y += 3;
+      const w = Math.min(W, 200);
+      const cols = [["Rol", w - 104, "l"], ["Equipo", 34, "l"], ["Horas", 20, "r"], ["Tarifa (USD/h)", 24, "r"], ["Costo (USD)", 26, "r"]];
+      y = tableHeader(doc, cols, M, y, w);
+      let hT = 0, cT = 0;
+      for (const r of roles) {
+        const hr = totRole(r), cost = hr * (r.rate || 0); hT += r.rate ? hr : 0; cT += cost;
+        drawCells(doc, cols, [r.name, r.team, fmtN(hr), r.rate ? r.rate : "-", r.rate ? fmtN(cost) : "c. oportunidad"], M + 1, y + 3.9, fs, false, INK);
+        doc.setDrawColor(...GRID).setLineWidth(0.2).line(M, y + rowH, M + w, y + rowH); y += rowH;
+      }
+      doc.setFillColor(246, 247, 251).rect(M, y, w, rowH, "F");
+      drawCells(doc, cols, ["Total consultoría", "", fmtN(hT), "", fmtN(cT)], M + 1, y + 3.9, fs, true, INK);
+      y += rowH + 8;
+    }
+
+    // Columnas de las tablas por fase y por paquete
+    const rc = 13, nameW = Math.max(40, W - 12 - 13 - roles.length * rc - 16);
+    const gridCols = first => [["Cód.", 12, "l"], [first, nameW, "l"], ["Háb.", 13, "r"], ...roles.map(r => [r.id, rc, "r"]), ["Total", 16, "r"]];
+
+    if (ef.byPhase) {
+      const need = 10 + (sortedPhases(api).length + 2) * rowH;
+      if (y + need > PH - 16) newPage();
+      doc.setFont("helvetica", "bold").setFontSize(11).setTextColor(...INK).text("Horas por fase", M, y); y += 3;
+      const cols = gridCols("Fase");
+      y = tableHeader(doc, cols, M, y, W);
+      for (const p of sortedPhases(api)) {
+        const ts = api.tasksOf(p.code);
+        const vals = roles.map(r => fmtN(ts.reduce((a, t) => a + h(t, r), 0)));
+        const tot = ts.reduce((a, t) => a + roles.reduce((b, r) => b + h(t, r), 0), 0);
+        doc.setFillColor(...hexToRgb(p.color)).rect(M, y + 0.4, 1.1, rowH - 0.8, "F");
+        drawCells(doc, cols, [p.code, p.name, "", ...vals, fmtN(tot)], M + 1, y + 3.9, fs, false, INK);
+        doc.setDrawColor(...GRID).setLineWidth(0.2).line(M, y + rowH, M + W, y + rowH); y += rowH;
+      }
+      doc.setFillColor(246, 247, 251).rect(M, y, W, rowH, "F");
+      drawCells(doc, cols, ["", "Total", "", ...roles.map(r => fmtN(totRole(r))), fmtN(roles.reduce((a, r) => a + totRole(r), 0))], M + 1, y + 3.9, fs, true, INK);
+      y += rowH + 8;
+    }
+
+    if (ef.detail) {
+      const cols = gridCols("Paquete de trabajo");
+      if (y + 30 > PH - 16) newPage();
+      doc.setFont("helvetica", "bold").setFontSize(11).setTextColor(...INK).text("Detalle por paquete", M, y); y += 3;
+      y = tableHeader(doc, cols, M, y, W);
+      const dRow = 4.6;
+      for (const p of sortedPhases(api)) {
+        const rgb = hexToRgb(p.color);
+        if (y + dRow * 2 > PH - 16) { newPage(); y = tableHeader(doc, cols, M, y, W); }
+        doc.setFillColor(...tint(rgb, 0.85)).rect(M, y, W, dRow, "F");
+        doc.setFont("helvetica", "bold").setFontSize(7.5).setTextColor(...shade(rgb, 0.5)).text(`${p.code}. ${p.name}`, M + 2, y + 3.3);
+        y += dRow;
+        for (const t of api.tasksOf(p.code)) {
+          if (y + dRow > PH - 16) { newPage(); y = tableHeader(doc, cols, M, y, W); }
+          const tot = roles.reduce((a, r) => a + h(t, r), 0);
+          const name = t.name + (t.loe ? " *" : t.buffer ? " (reserva, sin horas)" : "");
+          drawCells(doc, cols, [t.code, name, api.workDaysOf ? api.workDaysOf(t) : "", ...roles.map(r => fmtN(h(t, r))), fmtN(tot)], M + 1, y + 3.3, 7, false, INK);
+          doc.setDrawColor(...GRID).setLineWidth(0.15).line(M, y + dRow, M + W, y + dRow);
+          y += dRow;
+        }
+      }
+      doc.setFont("helvetica", "normal").setFontSize(7).setTextColor(...MUTED);
+      const legend = roles.map(r => `${r.id} ${r.name}`).join(" · ");
+      doc.text(doc.splitTextToSize(`${legend}. Háb.: días hábiles (lunes a viernes sin feriados). * Nivel de esfuerzo.`, W), M, Math.min(y + 5, PH - 14));
+    }
+  }
+
   /* --- Diccionario de la WBS --- */
   function drawDictionary(ctx) {
     const { doc, api, o, PW, PH, M } = ctx;
@@ -549,6 +630,7 @@
     if (dc.dates) cols.push(["Inicio", 17, "l", "start"], ["Fin", 17, "l", "end"]);
     if (dc.days) cols.push(["Días", 10, "r", "days"]);
     if (dc.workdays) cols.push(["Hábiles", 13, "r", "wd"]);
+    if (dc.effort) cols.push(["Horas", 12, "r", "eff"]);
     if (dc.weeks) cols.push(["Semanas", 16, "r", "weeks"]);
     if (dc.deps) cols.push(["Predecesoras", 34, "l", "deps"]);
     if (dc.slack) cols.push(["Holgura", 14, "r", "slack"]);
@@ -579,7 +661,7 @@
         const notes = dc.notes ? doc.splitTextToSize(t.notes || "", notesW - 2) : [];
         const h = Math.max(5.6, notes.length * 3.2 + 2.4);
         if (y + h > PH - 16) { doc.addPage(); y = start(); }
-        const v = { code: t.code, name: t.name, start: api.fmt(t.start), end: api.fmt(api.lastDay(t)), days: t.duration, wd: api.workDaysOf ? api.workDaysOf(t) : "",
+        const v = { code: t.code, name: t.name, start: api.fmt(t.start), end: api.fmt(api.lastDay(t)), days: t.duration, wd: api.workDaysOf ? api.workDaysOf(t) : "", eff: api.effortOf ? api.effortOf(t) || "-" : "",
           weeks: `${api.weekOf(t.start)}-${api.weekOf(api.lastDay(t))}`, deps: t.deps.join(", ") || "-", slack: t.loe ? "n/a" : inf.slack,
           crit: t.loe ? "NE" : inf.critical ? "" : "No", pct: `${t.progress || 0}%`, owner: t.owner || "-" };
         drawCells(doc, cols, cols.map(c => v[c[3]]), M + 1, y + 3.9, fs, false, INK);
@@ -622,8 +704,12 @@
     const msUid = uid++;
     state.milestones.forEach((_, i) => uidByCode.set("H" + i, uid++));
 
-    const owners = m.resources ? [...new Set(state.tasks.map(t => (t.owner || "").trim()).filter(Boolean))] : [];
+    // Recursos: los roles con esfuerzo estimado (con sus horas como trabajo) más los responsables sin esfuerzo cargado
+    const roleById = new Map((api.roles || []).map(r => [r.id, r]));
+    const roleNames = (api.roles || []).filter(r => state.tasks.some(t => (t.effort || {})[r.id])).map(r => r.name);
+    const owners = m.resources ? [...new Set([...roleNames, ...state.tasks.map(t => (t.owner || "").trim()).filter(o => o && !roleNames.some(n => n.startsWith(o)))])] : [];
     const resUid = new Map(owners.map((o, i) => [o, i + 1]));
+    const rateOf = new Map((api.roles || []).map(r => [r.name, r.rate || 0]));
     const assignments = [];
 
     for (const p of phases) {
@@ -651,8 +737,16 @@
           (m.fields ? `<ExtendedAttribute><FieldID>188743731</FieldID><Value>${esc(p.name)}</Value></ExtendedAttribute>` : "") +
           (m.fields ? `<ExtendedAttribute><FieldID>188743734</FieldID><Value>${inf.critical ? "Sí" : "No"}</Value></ExtendedAttribute>` : "") +
           preds + `</Task>`);
-        if (m.resources && t.owner && resUid.has(t.owner.trim())) {
-          assignments.push(`<Assignment><UID>${assignments.length + 1}</UID><TaskUID>${uidByCode.get(t.code)}</TaskUID><ResourceUID>${resUid.get(t.owner.trim())}</ResourceUID><Units>1</Units></Assignment>`);
+        const eff = Object.entries(t.effort || {}).filter(([id, h]) => h > 0 && roleById.has(id));
+        if (m.resources && eff.length) {
+          for (const [id, h] of eff) {
+            const name = roleById.get(id).name;
+            const units = Math.min(1, h / Math.max(1, t.duration * 8)).toFixed(2);
+            assignments.push(`<Assignment><UID>${assignments.length + 1}</UID><TaskUID>${uidByCode.get(t.code)}</TaskUID><ResourceUID>${resUid.get(name)}</ResourceUID><Units>${units}</Units><Work>PT${h}H0M0S</Work></Assignment>`);
+          }
+        } else if (m.resources && t.owner && (resUid.has(t.owner.trim()) || roleNames.some(n => n.startsWith(t.owner.trim())))) {
+          const res = resUid.get(t.owner.trim()) ?? resUid.get(roleNames.find(n => n.startsWith(t.owner.trim())));
+          assignments.push(`<Assignment><UID>${assignments.length + 1}</UID><TaskUID>${uidByCode.get(t.code)}</TaskUID><ResourceUID>${res}</ResourceUID><Units>1</Units></Assignment>`);
         }
       });
     }
@@ -675,7 +769,8 @@
       `<WorkingTime><FromTime>08:00:00</FromTime><ToTime>12:00:00</ToTime></WorkingTime><WorkingTime><FromTime>13:00:00</FromTime><ToTime>17:00:00</ToTime></WorkingTime>` +
       `</WorkingTimes></WeekDay>`).join("");
 
-    const resources = m.resources ? owners.map((o, i) => `<Resource><UID>${i + 1}</UID><ID>${i + 1}</ID><Name>${esc(o)}</Name><Type>1</Type><IsNull>0</IsNull></Resource>`).join("") : "";
+    const resources = m.resources ? owners.map((o, i) => `<Resource><UID>${i + 1}</UID><ID>${i + 1}</ID><Name>${esc(o)}</Name><Type>1</Type><IsNull>0</IsNull>` +
+      (rateOf.get(o) ? `<StandardRate>${rateOf.get(o)}</StandardRate><StandardRateFormat>2</StandardRateFormat>` : "") + `</Resource>`).join("") : "";
 
     const xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Project xmlns="http://schemas.microsoft.com/project">
