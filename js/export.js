@@ -42,7 +42,7 @@
     if (!sections.length) throw new Error("no elegiste ninguna sección para el PDF");
     if (!state.tasks.length) throw new Error("no quedó ningún paquete seleccionado");
 
-    const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: pageSize });
+    const doc = pdfSafe(new jsPDF({ orientation: "landscape", unit: "mm", format: pageSize }));
     const ctx = { doc, api, o, PW, PH, M };
     doc.setProperties({ title: `${state.name} - WBS y cronograma`, subject: "WBS y diagrama de Gantt", creator: "WBS y Gantt · Equipo 04" });
     sections.forEach(([, draw], i) => { if (i) doc.addPage(); draw(ctx); });
@@ -57,6 +57,20 @@
     }
 
     return { name: `${o.fileName || "cronograma-migracion-aws"}.pdf`, blob: doc.output("blob") };
+  }
+
+  // Las fuentes estándar de jsPDF solo cubren WinAnsi: flechas y otros símbolos salen como basura ("!”").
+  const WIN_ANSI_EXTRA = "€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ";
+  const GLYPHS = { "↔": "<->", "→": "->", "←": "<-", "⇒": "=>", "≈": "~", "≤": "<=", "≥": ">=", "✓": "Sí", "▸": ">", "▾": "v" };
+  const toWinAnsi = v => typeof v === "string"
+    ? v.replace(/[^\u0000-\u00ff]/g, ch => GLYPHS[ch] ?? (WIN_ANSI_EXTRA.includes(ch) ? ch : "?"))
+    : Array.isArray(v) ? v.map(toWinAnsi) : v;
+  function pdfSafe(doc) {
+    for (const fn of ["text", "splitTextToSize", "getTextWidth"]) {
+      const orig = doc[fn].bind(doc);
+      doc[fn] = (t, ...rest) => orig(toWinAnsi(t), ...rest);
+    }
+    return doc;
   }
 
   function pageHeader(ctx, title, subtitle) {
@@ -372,24 +386,32 @@
         }
       }
 
-      // Leyenda
+      // Leyenda: todas las fases y los símbolos, en filas que se cortan solas (hasta 3 filas)
       if (!g.legend) return;
-      const ly = PH - 19;
-      doc.setFont("helvetica", "normal").setFontSize(6.8).setTextColor(...MUTED);
-      let lx = M;
-      const item = (yy, draw, text) => { draw(lx, yy); doc.setTextColor(...MUTED).text(text, lx + 8, yy + 2.4); lx += 12 + doc.getTextWidth(text); };
-      for (const p of phases) {
-        const rgb = hexToRgb(p.color);
-        if (lx > PW - M - 40) break;
-        item(ly, (x, yy) => doc.setFillColor(...rgb).rect(x, yy, 6, 3, "F"), `${p.code}. ${p.name}`);
-      }
-      lx = M;
-      const ly2 = ly + 5;
-      if (g.milestones) item(ly2, (x, yy) => diamond(doc, x + 3, yy + 1.5, 1.6), "Hito");
-      if (state.tasks.some(t => t.loe)) item(ly2, (x, yy) => doc.setFillColor(200, 200, 210).rect(x, yy + 0.5, 6, 2, "F"), "Nivel de esfuerzo (rayado)");
-      if (g.critical) item(ly2, (x, yy) => doc.setDrawColor(...CRIT).setLineWidth(0.5).rect(x, yy, 6, 3, "S"), "Ruta crítica");
-      if (g.today) item(ly2, (x, yy) => doc.setDrawColor(...TODAY).setLineWidth(0.6).line(x + 3, yy - 0.5, x + 3, yy + 3.5), "Hoy");
-      if (g.deps) item(ly2, (x, yy) => doc.setDrawColor(150, 155, 170).setLineWidth(0.25).line(x, yy + 1.5, x + 6, yy + 1.5), "Dependencia fin-comienzo");
+      const legend = phases.map(p => { const rgb = hexToRgb(p.color); return [(x, yy) => doc.setFillColor(...rgb).rect(x, yy, 6, 3, "F"), `${p.code}. ${p.name}`]; });
+      if (g.milestones) legend.push([(x, yy) => diamond(doc, x + 3, yy + 1.5, 1.6), "Hito"]);
+      if (state.tasks.some(t => t.loe)) legend.push([(x, yy) => doc.setFillColor(200, 200, 210).rect(x, yy + 0.5, 6, 2, "F"), "Nivel de esfuerzo (rayado)"]);
+      if (g.critical) legend.push([(x, yy) => doc.setDrawColor(...CRIT).setLineWidth(0.5).rect(x, yy, 6, 3, "S"), "Ruta crítica"]);
+      if (g.today) legend.push([(x, yy) => doc.setDrawColor(...TODAY).setLineWidth(0.6).line(x + 3, yy - 0.5, x + 3, yy + 3.5), "Hoy"]);
+      if (g.deps) legend.push([(x, yy) => doc.setDrawColor(150, 155, 170).setLineWidth(0.25).line(x, yy + 1.5, x + 6, yy + 1.5), "Dependencia fin-comienzo"]);
+      const layout = fs => {
+        doc.setFont("helvetica", "normal").setFontSize(fs);
+        let x = M, row = 0;
+        const pos = legend.map(([, text]) => {
+          const w = 11 + doc.getTextWidth(text);
+          if (x > M && x + w > PW - M) { x = M; row++; }
+          const at = [x, row]; x += w; return at;
+        });
+        return { pos, rows: row + 1 };
+      };
+      let fsL = 6.8, lay = layout(fsL);
+      while (lay.rows > 3 && fsL > 5) lay = layout(fsL -= 0.6);
+      const legH = 4.4, ly = PH - 9 - lay.rows * legH;
+      legend.forEach(([draw, text], i) => {
+        const [x, row] = lay.pos[i], yy = ly + row * legH;
+        draw(x, yy);
+        doc.setTextColor(...MUTED).text(text, x + 8, yy + 2.4);
+      });
     });
   }
 

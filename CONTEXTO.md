@@ -55,6 +55,7 @@ Este repo contiene una página web interactiva con la WBS del equipo y un diagra
 ## Bitácora
 | Fecha | Cambio | Rama / PR |
 |---|---|---|
+| 2026-10-14 | PDF: los símbolos fuera de WinAnsi (como ↔) se reemplazan por texto (`<->`) en vez de salir rotos, y la leyenda del Gantt muestra todas las fases (se corta en filas). Los hitos H5 y H6 usan los nombres del Project Charter v1.2. | `fix/export-pdf-charter` |
 | 2026-10-13 | Limpieza de UX/UI (resumen en una línea, ruta crítica sutil, dependencias apagadas por defecto, hitos desplegables, panel de exportar más simple) y red del Gantt cerrada (8.2/8.4 → 5.7, 7.1–7.4 → 9.7). | `feature/ux-limpieza` |
 | 2026-10-13 | WBS v2: 67 paquetes (staging, EC2, VPN, DMS, AWS Backup, aprobaciones de hitos, integración, rollback, transferencia operativa, fase 9 completa), responsables y descripción por paquete. | `feature/wbs-v2-informe` |
 | 2026-10-13 | Exportar a draw.io (.drawio): páginas WBS y Gantt editables. Se oculta el selector de hoja fuera de PDF. | `feature/exportar-drawio` |
