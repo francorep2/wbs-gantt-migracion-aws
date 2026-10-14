@@ -2,9 +2,36 @@
 
 Página web interactiva (HTML + CSS + JavaScript puro, sin dependencias) con la **WBS** del proyecto del Equipo 04 (Dirección de Proyectos) y su **diagrama de Gantt**.
 
-## Cómo usarlo
+## Cómo levantarlo en local
 
-Abrí `index.html` en el navegador (doble clic alcanza, no necesita servidor).
+No hay nada que instalar ni compilar: es una página estática.
+
+### Opción rápida
+Abrí `index.html` con doble clic. Funciona todo, incluso las exportaciones.
+
+### Con servidor local (recomendado para probar)
+Así se comporta igual que publicada y no hay problemas con permisos de archivos locales.
+
+1. Cloná el repo y entrá a la carpeta:
+   ```bash
+   git clone https://github.com/francorep2/wbs-gantt-migracion-aws.git
+   cd wbs-gantt-migracion-aws
+   ```
+2. Levantá un servidor estático en la raíz del repo. Cualquiera de estas opciones sirve:
+   ```bash
+   python -m http.server 8000      # con Python 3 (en algunos sistemas: python3)
+   npx serve -l 8000               # con Node.js
+   ```
+3. Abrí <http://localhost:8000> en el navegador.
+4. Para cortarlo, `Ctrl + C` en la terminal.
+
+Si el puerto 8000 está ocupado, usá otro (por ejemplo `8080`) y abrí esa dirección.
+
+### Si no ves los cambios
+- **Archivos viejos en caché**: recargá con `Ctrl + F5` (en Mac, `Cmd + Shift + R`).
+- **Datos viejos guardados en el navegador**: los datos se guardan en el navegador (localStorage). Para volver a los datos del repo, usá *Archivo → Restaurar datos originales*.
+
+## Cómo usarlo
 
 ### Vista WBS
 - Organigrama con las 9 fases y sus 67 paquetes de trabajo, cada uno con su responsable (rol) y la descripción del entregable.
