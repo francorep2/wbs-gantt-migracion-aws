@@ -8,7 +8,7 @@ Caso: **Migración a AWS de Mercado Hogar S.R.L.** (PostgreSQL ~850 GB, ERP, e-c
 Este repo contiene una página web interactiva con la WBS del equipo y un diagrama de Gantt editable.
 
 ## Fuentes usadas
-- **WBS** (imagen `wbs.png` enviada por Franco): 9 fases y 51 paquetes de trabajo. En la revisión v2 (13/10) se completó a 67 paquetes con lo que pedían el Charter y el Anexo I (detalle y motivos en `docs/informe-estado-tp.pdf`).
+- **WBS** (imagen `wbs.png` enviada por Franco): 9 fases y 51 paquetes de trabajo. En la revisión v2 (13/10) se completó a 67 paquetes con lo que pedían el Charter y el Anexo I.
 - **Anexo I - Contexto Mercado Hogar**, sección 10: 26 semanas en 8 fases.
 - **Project Charter del Equipo 04**: hitos en semanas 3, 6, 10, 15, 20, 23, 24 y 26.
 
@@ -20,6 +20,7 @@ Este repo contiene una página web interactiva con la WBS del equipo y un diagra
 
   | WBS | Semanas | Relación con el Anexo / Charter |
   |---|---|---|
+| 2026-10-14 | Se quitó del repo `docs/informe-estado-tp.pdf` y `.html` a pedido de Franco (los informes del TP quedan fuera del repo). | `chore/quitar-informe` |
   | 1. Iniciación & Relevamiento | 1–3 | Fase 1 · Hito "Relevamiento finalizado" (S3) |
   | 2. Diseño Arquitectura AWS | 4–6 | Fase 2 · Hito "Arquitectura aprobada" (S6) |
   | 3. Preparación Entorno Cloud | 7–10 | Fase 3 · Hito "Entorno cloud preparado" (S10) |
@@ -50,14 +51,14 @@ Este repo contiene una página web interactiva con la WBS del equipo y un diagra
 - Validar con el equipo duraciones y dependencias de detalle.
 - Ya hay un responsable (rol) por paquete; falta armar la RACI completa (U07) y cargar el avance real.
 - La ruta crítica abarca 51 de 67 paquetes (46 antes de cerrar la red) porque cada fase está ajustada a su hito sin colchón: evaluar una reserva de cronograma.
-- Lo que falta del TP y cómo hacerlo está en `docs/informe-estado-tp.pdf`.
+- Los informes de estado del TP no van en el repo (pedido de Franco, 14/10): se entregan aparte.
 - Posible: dependencias de otros tipos (CC, FF), recursos y costos por tarea.
 
 ## Bitácora
 | Fecha | Cambio | Rama / PR |
 |---|---|---|
 | 2026-10-13 | Limpieza de UX/UI (resumen en una línea, ruta crítica sutil, dependencias apagadas por defecto, hitos desplegables, panel de exportar más simple) y red del Gantt cerrada (8.2/8.4 → 5.7, 7.1–7.4 → 9.7). | `feature/ux-limpieza` |
-| 2026-10-13 | WBS v2: 67 paquetes (staging, EC2, VPN, DMS, AWS Backup, aprobaciones de hitos, integración, rollback, transferencia operativa, fase 9 completa), responsables y descripción por paquete. Informe `docs/informe-estado-tp.pdf`. | `feature/wbs-v2-informe` |
+| 2026-10-13 | WBS v2: 67 paquetes (staging, EC2, VPN, DMS, AWS Backup, aprobaciones de hitos, integración, rollback, transferencia operativa, fase 9 completa), responsables y descripción por paquete. Informe de estado del TP (quitado del repo el 14/10). | `feature/wbs-v2-informe` |
 | 2026-10-13 | Exportar a draw.io (.drawio): páginas WBS y Gantt editables. Se oculta el selector de hoja fuera de PDF. | `feature/exportar-drawio` |
 | 2026-10-13 | Panel de exportación personalizada: secciones, columnas, fases/paquetes, hoja A3/A4 y nombre de archivo. | `feature/exportacion-personalizada` |
 | 2026-10-13 | Exportar a PDF (WBS y Gantt / informe detallado) y a MS Project XML (simple / detallado). | `feature/exportar-pdf-msproject` |

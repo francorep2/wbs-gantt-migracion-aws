@@ -90,7 +90,3 @@ CONTEXTO.md       Contexto, decisiones y bitácora del proyecto
 ```
 
 Para cambiar los datos "de fábrica" editá `js/data.js`. Si cambiás la estructura, subí la versión de `STORAGE_KEY` en `app.js` para que los navegadores no sigan mostrando la copia vieja guardada.
-
-## Informe del TP
-
-`docs/informe-estado-tp.pdf`: estado del TP según el cronograma de clases (contenido visto hasta la U08), qué falta y cómo hacerlo, más los cambios hechos a la WBS. Se genera desde `docs/informe-estado-tp.html`.
