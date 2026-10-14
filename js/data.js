@@ -103,22 +103,24 @@ window.DEFAULT_PROJECT = {
           notes: "Replicación continua de cambios hasta la sincronización final del cutover (6.4)." },
         { code: "4.8", name: "Migración ERP a EC2", start: W(16), duration: 21, deps: ["4.6"], owner: AS,
           notes: "ERP legacy en EC2 (rehost/replatform según 2.3), integrado con RDS." },
-        { code: "4.9", name: "Migración e-commerce", start: W(16), duration: 35, deps: ["4.6"], owner: AS,
-          notes: "Plataforma online migrada e integrada con el ERP." },
-        { code: "4.10", name: "Migración POS", start: W(19), duration: 14, deps: ["4.8"], owner: AS,
-          notes: "Punto de venta de la sucursal apuntando al ERP en AWS." },
+        { code: "4.9", name: "Migración e-commerce", start: W(15), duration: 35, deps: ["4.5"], owner: AS,
+          notes: "Plataforma online migrada e integrada con el ERP. Arranca al validar los datos (fast tracking sobre el informe del piloto) para liberar la reserva 4.12." },
+        { code: "4.10", name: "Migración POS", start: W(19), duration: 7, deps: ["4.8"], owner: AS,
+          notes: "POS de la sucursal configurado contra el ERP en AWS (staging). La conmutación en producción se hace en el cutover (6.5)." },
         { code: "4.11", name: "Migración archivos a S3", start: W(16), duration: 21, deps: ["4.6"], owner: INF,
-          notes: "Archivos operativos e históricos migrados a S3. Con 4.8 a 4.10 completa el hito H5 (semana 20)." },
+          notes: "Archivos operativos e históricos migrados a S3." },
+        { code: "4.12", name: "Reserva de contingencia (buffer)", start: W(20), duration: 7, deps: ["4.8", "4.9", "4.10", "4.11"], owner: PM, buffer: true,
+          notes: "Reserva de cronograma de 1 semana antes del hito H5, después del bloque de mayor riesgo (apps legacy, riesgo R1). La autoriza el PM; si no se usa, las pruebas pueden adelantarse." },
       ],
     },
     {
       code: "5", name: "Pruebas & Validación", color: "#10b981",
       tasks: [
-        { code: "5.1", name: "Pruebas de integración", start: W(21), duration: 7, deps: ["4.8", "4.9", "4.10", "4.11"], owner: AS,
+        { code: "5.1", name: "Pruebas de integración", start: W(21), duration: 7, deps: ["4.12"], owner: AS,
           notes: "Flujo completo ERP, e-commerce y POS sobre AWS." },
-        { code: "5.2", name: "Pruebas funcionales", start: W(21), duration: 7, deps: ["4.8", "4.9", "4.10", "4.11"], owner: AF,
+        { code: "5.2", name: "Pruebas funcionales", start: W(21), duration: 7, deps: ["4.12"], owner: AF,
           notes: "Casos de prueba trazados a los requisitos de 1.5." },
-        { code: "5.3", name: "Pruebas de rendimiento y carga", start: W(21), duration: 7, deps: ["4.8", "4.9", "4.10"], owner: CE,
+        { code: "5.3", name: "Pruebas de rendimiento y carga", start: W(21), duration: 7, deps: ["4.12"], owner: CE,
           notes: "Simulación de 45 usuarios concurrentes y picos de venta online." },
         { code: "5.4", name: "Pruebas de seguridad y accesos", start: W(22), duration: 5, deps: ["5.1"], owner: CE,
           notes: "Revisión de IAM, Security Groups y exposición de la base (sin pentesting, excluido en el Charter)." },
@@ -203,6 +205,21 @@ window.DEFAULT_PROJECT = {
       ],
     },
   ],
+  // Calendario laboral: lunes a viernes, sin los feriados nacionales de Argentina dentro del proyecto.
+  // Las duraciones siguen en días corridos (26 semanas del Anexo I); el calendario se usa para
+  // marcar los días no laborables en el Gantt y para contar los días hábiles de cada paquete.
+  calendar: {
+    workDays: [1, 2, 3, 4, 5], // 0 = domingo
+    holidays: [
+      ["2026-10-12", "Día del Respeto a la Diversidad Cultural"],
+      ["2026-11-23", "Día de la Soberanía Nacional (trasladable)"],
+      ["2026-12-08", "Inmaculada Concepción de María"],
+      ["2026-12-25", "Navidad"],
+      ["2027-01-01", "Año Nuevo"],
+      ["2027-02-08", "Carnaval"],
+      ["2027-02-09", "Carnaval"],
+    ],
+  },
   // Hitos del Project Charter (día = fin de la semana indicada)
   milestones: [
     { id: "H1", name: "Relevamiento finalizado", day: W(3, 7) },

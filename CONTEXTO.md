@@ -16,6 +16,7 @@ Este repo contiene una página web interactiva con la WBS del equipo y un diagra
 - **Tecnología**: HTML + CSS + JS puro, sin frameworks ni build, para que abra con doble clic.
 - **Fecha de inicio por defecto**: lunes 14/09/2026 (el charter está fechado 07/09/2026). Se cambia desde la vista Gantt.
 - **Unidad de tiempo**: días corridos; las duraciones por defecto son múltiplos de semana para encadenar sin huecos.
+- **Calendario laboral** (`calendar` en `data.js`): lunes a viernes sin los feriados nacionales del período. Las duraciones siguen en días corridos para respetar las 26 semanas del Anexo; el calendario marca los días no laborables en el Gantt y da los días hábiles de cada paquete, que son la base para estimar el esfuerzo en horas.
 - **Mapeo de las fases de la WBS al Anexo** (el Anexo tiene 8 fases y la WBS 9, con otros cortes):
 
   | WBS | Semanas | Relación con el Anexo / Charter |
@@ -49,12 +50,13 @@ Este repo contiene una página web interactiva con la WBS del equipo y un diagra
 ## Pendientes / ideas
 - Validar con el equipo duraciones y dependencias de detalle.
 - Ya hay un responsable (rol) por paquete; falta armar la RACI completa (U07) y cargar el avance real.
-- La ruta crítica abarca 51 de 67 paquetes (46 antes de cerrar la red) porque cada fase está ajustada a su hito sin colchón: evaluar una reserva de cronograma.
+- **Reserva de cronograma**: 4.12 (1 semana, S20), antes del hito H5 y después de la migración de apps legacy (riesgo R1). Se liberó con fast tracking: 4.9 e-commerce arranca al validar los datos (4.5) y 4.10 POS pasa a 7 días (su conmutación real es en el cutover). La ruta crítica queda en 52 de 68 paquetes porque las fases siguen atadas a los hitos del Charter.
 - Posible: dependencias de otros tipos (CC, FF), recursos y costos por tarea.
 
 ## Bitácora
 | Fecha | Cambio | Rama / PR |
 |---|---|---|
+| 2026-10-14 | Calendario laboral con feriados (marcados en el Gantt y en el PDF, días hábiles por paquete) y reserva de contingencia 4.12 con fast tracking de 4.9 y 4.10. `migrate()` aplica el cambio a los datos ya guardados. | `feature/calendario-reserva` |
 | 2026-10-14 | PDF: los símbolos fuera de WinAnsi (como ↔) se reemplazan por texto (`<->`) en vez de salir rotos, y la leyenda del Gantt muestra todas las fases (se corta en filas). Los hitos H5 y H6 usan los nombres del Project Charter v1.2. | `fix/export-pdf-charter` |
 | 2026-10-13 | Limpieza de UX/UI (resumen en una línea, ruta crítica sutil, dependencias apagadas por defecto, hitos desplegables, panel de exportar más simple) y red del Gantt cerrada (8.2/8.4 → 5.7, 7.1–7.4 → 9.7). | `feature/ux-limpieza` |
 | 2026-10-13 | WBS v2: 67 paquetes (staging, EC2, VPN, DMS, AWS Backup, aprobaciones de hitos, integración, rollback, transferencia operativa, fase 9 completa), responsables y descripción por paquete. | `feature/wbs-v2-informe` |

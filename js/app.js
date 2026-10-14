@@ -41,7 +41,7 @@
       phases: d.phases.map(p => ({ code: p.code, name: p.name, color: p.color, collapsed: false })),
       tasks: d.phases.flatMap(p => p.tasks.map(t => ({
         code: t.code, phase: p.code, name: t.name, start: t.start, duration: t.duration,
-        deps: t.deps || [], progress: t.progress || 0, owner: t.owner || "", notes: t.notes || "", loe: !!t.loe,
+        deps: t.deps || [], progress: t.progress || 0, owner: t.owner || "", notes: t.notes || "", loe: !!t.loe, buffer: !!t.buffer,
       }))),
       milestones: d.milestones,
     };
@@ -60,6 +60,15 @@
     // Nombres de hitos iguales a los del Project Charter v1.2 (solo si no se editaron a mano)
     const renamed = { "Migración de apps y datos finalizada": "Migración de aplicaciones y datos finalizada", "Pruebas y capacitación aprobadas": "Pruebas integrales y capacitación" };
     for (const m of s.milestones || []) if (renamed[m.name]) m.name = renamed[m.name];
+    // Reserva de cronograma 4.12 (14/10): fast tracking de 4.9, POS de 7 días y pruebas detrás de la reserva
+    if (!s.tasks.some(t => t.code === "4.12") && s.phases.some(p => p.code === "4")) {
+      const def = fromDefault().tasks, get = c => s.tasks.find(t => t.code === c);
+      for (const c of ["4.9", "4.10", "4.11", "5.1", "5.2", "5.3"]) {
+        const t = get(c), d = def.find(x => x.code === c);
+        if (t && d) Object.assign(t, { start: d.start, duration: d.duration, deps: d.deps, notes: d.notes });
+      }
+      s.tasks.push(def.find(x => x.code === "4.12"));
+    }
     return s;
   }
 
@@ -89,6 +98,13 @@
   const weekOf = d => Math.floor(d / 7) + 1;
   const endOf = t => t.start + t.duration; // exclusivo
   const lastDay = t => endOf(t) - 1;       // inclusivo, para mostrar
+
+  // Calendario laboral (lunes a viernes sin feriados): marca días no laborables y cuenta días hábiles
+  const CAL = window.DEFAULT_PROJECT.calendar || { workDays: [1, 2, 3, 4, 5], holidays: [] };
+  const HOLIDAYS = new Map(CAL.holidays);
+  const holidayName = d => HOLIDAYS.get(isoDay(d));
+  const isWorkDay = d => CAL.workDays.includes(dayToDate(d).getUTCDay()) && !holidayName(d);
+  const workDaysOf = t => { let n = 0; for (let d = t.start; d < endOf(t); d++) if (isWorkDay(d)) n++; return n; };
 
   const codeCmp = (a, b) => {
     const pa = a.split(".").map(Number), pb = b.split(".").map(Number);
@@ -341,7 +357,7 @@
         rowIndex.set(t.code, rows.length);
         const w = Math.max(t.duration * px, 4);
         const bar = el("div", {
-          class: `bar${crit && inf.critical ? " crit" : ""}${t.loe ? " loe" : ""}${inf.violated ? " warn" : ""}`,
+          class: `bar${crit && inf.critical ? " crit" : ""}${t.loe ? " loe" : ""}${t.buffer ? " buffer" : ""}${inf.violated ? " warn" : ""}`,
           style: `left:${x(t.start)}px;width:${w}px`,
           "data-code": t.code,
         },
@@ -390,6 +406,10 @@
         const dow = (startDow + ((d % 7) + 7)) % 7;
         if (dow === 5) grid.append(el("div", { class: "wkend", style: `left:${x(d)}px;width:${2 * px}px` }));
       }
+    }
+    for (let d = from; d < to; d++) {
+      const h = holidayName(d);
+      if (h) grid.append(el("div", { class: "holiday", style: `left:${x(d)}px;width:${Math.max(px, 2)}px`, title: `Feriado · ${fmt(d)} · ${h}` }));
     }
     if (ui.milestones) for (const m of state.milestones) grid.append(el("div", { class: "ms-line", style: `left:${x(m.day)}px` }));
     const today = Math.floor((Date.now() - startMs()) / DAY_MS);
@@ -487,7 +507,8 @@
   function showTip(e, t) {
     const inf = analysis.info.get(t.code) || {};
     const lines = [
-      `${fmt(t.start)} → ${fmt(lastDay(t))} · ${t.duration} días (sem ${weekOf(t.start)}–${weekOf(lastDay(t))})`,
+      `${fmt(t.start)} → ${fmt(lastDay(t))} · ${t.duration} días corridos, ${workDaysOf(t)} hábiles (sem ${weekOf(t.start)}–${weekOf(lastDay(t))})`,
+      t.buffer ? "Reserva de contingencia de cronograma" : null,
       `Avance: ${t.progress || 0}%`,
       t.deps.length ? `Predecesoras: ${t.deps.join(", ")}` : null,
       t.loe ? "Nivel de esfuerzo" : inf.slack != null ? `Holgura: ${inf.slack} días${inf.critical ? " · CRÍTICA" : ""}` : null,
@@ -654,7 +675,7 @@
     ["summary", "Resumen del proyecto", "Indicadores, tablas y supuestos", [["kpis", "Indicadores"], ["phases", "Tabla de fases"], ["milestones", "Tabla de hitos"], ["critical", "Ruta crítica"], ["assumptions", "Supuestos del cronograma"]]],
     ["wbs", "WBS", "Organigrama de fases y paquetes", [["dates", "Fechas y duración en cada paquete"], ["critical", "Resaltar paquetes críticos"]]],
     ["gantt", "Diagrama de Gantt", "Barras por semana con el color de cada fase", [["colDates", "Columnas inicio y fin"], ["colDays", "Columna días"], ["colProgress", "Columna % de avance"], ["labels", "Nombre al lado de cada barra"], ["deps", "Flechas de dependencias"], ["critical", "Ruta crítica"], ["milestones", "Hitos"], ["today", "Línea de hoy"], ["legend", "Leyenda"]]],
-    ["dictionary", "Diccionario de la WBS", "Tabla con el detalle de cada paquete", [["dates", "Inicio y fin"], ["days", "Días"], ["weeks", "Semanas"], ["deps", "Predecesoras"], ["slack", "Holgura"], ["critical", "Crítica"], ["progress", "Avance"], ["owner", "Responsable"], ["notes", "Notas"]]],
+    ["dictionary", "Diccionario de la WBS", "Tabla con el detalle de cada paquete", [["dates", "Inicio y fin"], ["days", "Días"], ["workdays", "Días hábiles"], ["weeks", "Semanas"], ["deps", "Predecesoras"], ["slack", "Holgura"], ["critical", "Crítica"], ["progress", "Avance"], ["owner", "Responsable"], ["notes", "Notas"]]],
   ];
   const DIO_OPTS = [["wbs", "Hoja WBS (organigrama)"], ["wbsDates", "Fechas y duración en la WBS"], ["gantt", "Hoja Gantt"], ["deps", "Dependencias como conectores"], ["critical", "Ruta crítica en rojo"], ["milestones", "Hitos del Project Charter"]];
   const MSP_OPTS = [["deps", "Dependencias entre paquetes"], ["progress", "% de avance"], ["resources", "Responsables como recursos"], ["notes", "Notas con la holgura de cada paquete"], ["milestones", "Hitos del Project Charter"], ["fields", "Campos Fase y Ruta crítica (para agrupar o colorear)"]];
@@ -793,7 +814,7 @@
       const keep = t => !excl.has(t.code);
       const tasks = state.tasks.filter(keep);
       const fstate = { ...state, tasks, phases: state.phases.filter(p => tasks.some(t => t.phase === p.code)) };
-      const api = { state: fstate, analysis, fmt, isoDay, endOf, lastDay, weekOf, codeCmp, tasksOf: code => tasksOf(code).filter(keep), phaseByCode, dayToDate };
+      const api = { state: fstate, analysis, fmt, isoDay, endOf, lastDay, weekOf, codeCmp, tasksOf: code => tasksOf(code).filter(keep), phaseByCode, dayToDate, workDaysOf, holidayName };
       const file = exp.format === "pdf"
         ? await window.Exporters.pdf(api, { ...exp.pdf, pageSize: exp.pageSize, fileName: exp.fileName })
         : exp.format === "dio"
@@ -808,10 +829,10 @@
 
   function exportCSV() {
     const esc = v => `"${String(v ?? "").replace(/"/g, '""')}"`;
-    const header = ["Código", "Fase", "Tarea", "Inicio", "Fin", "Duración (días)", "Semana inicio", "Semana fin", "Avance %", "Predecesoras", "Responsable", "Crítica", "Holgura (días)", "Notas"];
+    const header = ["Código", "Fase", "Tarea", "Inicio", "Fin", "Duración (días)", "Días hábiles", "Semana inicio", "Semana fin", "Avance %", "Predecesoras", "Responsable", "Crítica", "Holgura (días)", "Notas"];
     const lines = [...state.tasks].sort((a, b) => codeCmp(a.code, b.code)).map(t => {
       const inf = analysis.info.get(t.code);
-      return [t.code, phaseByCode(t.phase)?.name, t.name, fmt(t.start), fmt(lastDay(t)), t.duration, weekOf(t.start), weekOf(lastDay(t)),
+      return [t.code, phaseByCode(t.phase)?.name, t.name, fmt(t.start), fmt(lastDay(t)), t.duration, workDaysOf(t), weekOf(t.start), weekOf(lastDay(t)),
         t.progress || 0, t.deps.join(", "), t.owner, inf.critical ? "Sí" : "No", inf.slack ?? "", t.notes].map(esc).join(";");
     });
     download("cronograma-migracion-aws.csv", "﻿" + [header.map(esc).join(";"), ...lines].join("\r\n"), "text/csv;charset=utf-8");

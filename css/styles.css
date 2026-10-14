@@ -194,6 +194,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 .g-grid { position: absolute; top: 0; bottom: 0; pointer-events: none; z-index: 0; }
 .g-grid .col { position: absolute; top: 0; bottom: 0; border-left: 1px solid var(--grid); }
+.g-grid .holiday { position: absolute; top: 0; bottom: 0; background: color-mix(in srgb, var(--today) 14%, transparent); }
 .g-grid .wkend { position: absolute; top: 0; bottom: 0; background: color-mix(in srgb, var(--muted) 8%, transparent); }
 .g-grid .today { position: absolute; top: 0; bottom: 0; border-left: 2px solid var(--today); opacity: .8; }
 .g-grid .ms-line { position: absolute; top: 0; bottom: 0; border-left: 1px dashed color-mix(in srgb, var(--text) 18%, transparent); }
@@ -208,6 +209,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .bar .handle { position: absolute; right: 0; top: 0; bottom: 0; width: 8px; cursor: ew-resize; }
 /* Ruta crítica: subrayado rojo, sin recargar todo el gráfico */
 .bar.crit { box-shadow: inset 0 -3px 0 var(--crit); }
+.bar.buffer { background: repeating-linear-gradient(-45deg, color-mix(in srgb, var(--muted) 22%, var(--surface)) 0 4px, var(--surface) 4px 8px); border: 1px dashed var(--muted); }
 .bar.loe { background: repeating-linear-gradient(45deg, color-mix(in srgb, var(--phase) 25%, var(--surface)) 0 6px, var(--surface) 6px 12px); }
 .bar.dragging { cursor: grabbing; opacity: .8; box-shadow: var(--shadow); }
 .bar.warn { outline: 2px dashed var(--danger); outline-offset: 1px; }
@@ -237,6 +239,8 @@ svg.deps path.bad { stroke: var(--danger); stroke-dasharray: 4 3; opacity: 1; }
 .lg.tbar { background: #93c5fd; border: 1px solid #3b82f6; }
 .lg.crit { background: color-mix(in srgb, #3b82f6 30%, var(--surface)); box-shadow: inset 0 -3px 0 var(--crit); }
 .lg.loe { background: repeating-linear-gradient(45deg, #cbd5e1 0 3px, transparent 3px 6px); border: 1px solid #64748b; }
+.lg.buffer { background: repeating-linear-gradient(-45deg, #cbd5e1 0 3px, transparent 3px 6px); border: 1px dashed #64748b; }
+.lg.holiday { width: 8px; background: color-mix(in srgb, var(--today) 30%, transparent); border-radius: 1px; }
 .lg.dia { width: 10px; height: 10px; background: var(--text); transform: rotate(45deg); }
 .lg.today { width: 2px; height: 14px; background: var(--today); border-radius: 0; }
 .lg.warn { border: 2px dashed var(--danger); }
