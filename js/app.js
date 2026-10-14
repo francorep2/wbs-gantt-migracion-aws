@@ -50,12 +50,16 @@
   // Datos guardados antes de cerrar la red (13/10): las actividades sin sucesora pasan a alimentar el Go/No-Go y el cierre
   function migrate(s) {
     const add = { "5.7": ["8.2", "8.4"], "9.7": ["7.1", "7.2", "7.3", "7.4"] };
-    if (s.netFix) return s;
-    for (const [code, extra] of Object.entries(add)) {
-      const t = s.tasks.find(x => x.code === code);
-      if (t) for (const d of extra) if (!t.deps.includes(d) && s.tasks.some(x => x.code === d)) t.deps.push(d);
+    if (!s.netFix) {
+      for (const [code, extra] of Object.entries(add)) {
+        const t = s.tasks.find(x => x.code === code);
+        if (t) for (const d of extra) if (!t.deps.includes(d) && s.tasks.some(x => x.code === d)) t.deps.push(d);
+      }
+      s.netFix = true;
     }
-    s.netFix = true;
+    // Nombres de hitos iguales a los del Project Charter v1.2 (solo si no se editaron a mano)
+    const renamed = { "Migración de apps y datos finalizada": "Migración de aplicaciones y datos finalizada", "Pruebas y capacitación aprobadas": "Pruebas integrales y capacitación" };
+    for (const m of s.milestones || []) if (renamed[m.name]) m.name = renamed[m.name];
     return s;
   }
 
